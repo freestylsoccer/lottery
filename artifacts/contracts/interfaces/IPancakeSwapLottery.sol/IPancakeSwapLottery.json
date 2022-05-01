@@ -14,6 +14,11 @@
           "internalType": "uint32[]",
           "name": "_ticketNumbers",
           "type": "uint32[]"
+        },
+        {
+          "internalType": "address",
+          "name": "referral",
+          "type": "address"
         }
       ],
       "name": "buyTickets",
@@ -30,13 +35,8 @@
         },
         {
           "internalType": "uint256[]",
-          "name": "_ticketIds",
+          "name": "_ticketNumbers",
           "type": "uint256[]"
-        },
-        {
-          "internalType": "uint32[]",
-          "name": "_brackets",
-          "type": "uint32[]"
         }
       ],
       "name": "claimTickets",
@@ -53,24 +53,6 @@
         }
       ],
       "name": "closeLottery",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_lotteryId",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bool",
-          "name": "_autoInjection",
-          "type": "bool"
-        }
-      ],
-      "name": "drawFinalNumberAndMakeLotteryClaimable",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -107,26 +89,6 @@
         },
         {
           "internalType": "uint256",
-          "name": "_discountDivisor",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256[6]",
-          "name": "_rewardsBreakdown",
-          "type": "uint256[6]"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_treasuryFee",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_ticketsSold",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
           "name": "_minTicketsToSell",
           "type": "uint256"
         },
@@ -139,6 +101,11 @@
           "internalType": "uint256[]",
           "name": "_prizes",
           "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_referralReward",
+          "type": "uint256"
         }
       ],
       "name": "startLottery",

@@ -7,6 +7,30 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "number",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "n",
+          "type": "uint256"
+        }
+      ],
+      "name": "expand",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "_seed",
           "type": "uint256"
         }

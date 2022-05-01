@@ -69,4 +69,12 @@ contract MockRandomNumberGenerator is IRandomNumberGenerator, Ownable {
     function fulfillRandomness(bytes32 requestId, uint256 randomness) internal {
         randomResult = uint32(1000000 + (randomness % 1000000));
     }
+
+    function expand(uint256 randomValue, uint256 n) external pure override returns (uint256[] memory expandedValues) {
+        expandedValues = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            expandedValues[i] = uint256(keccak256(abi.encode(randomValue, i)));
+        }
+        return expandedValues;
+    }
 }

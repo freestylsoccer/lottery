@@ -27,6 +27,8 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
     // track the winners
     uint256 public currentWinnerId;
 
+    uint256 public currentRewardId;
+
     uint256 public maxNumberTicketsPerBuyOrClaim = 100;
 
     uint256 public maxPriceTicketInCake = 50 ether;
@@ -34,10 +36,9 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
 
     uint256 public pendingInjectionNextLottery;
 
-    uint256 public constant MIN_DISCOUNT_DIVISOR = 300;
     uint256 public constant MIN_LENGTH_LOTTERY = 4 hours - 5 minutes; // 4 hours
     uint256 public constant MAX_LENGTH_LOTTERY = 4 days + 5 minutes; // 4 days
-    uint256 public constant MAX_TREASURY_FEE = 3000; // 30%
+    uint256 public constant MAX_REFERRAL_FEE = 3000; // 30%
 
     IERC20 public cakeToken;
     IRandomNumberGenerator public randomGenerator;
@@ -46,7 +47,8 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
         Pending,
         Open,
         Close,
-        Claimable
+        Claimable,
+        Unrealized
     }
 
     struct Lottery {
@@ -54,11 +56,6 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
         uint256 startTime;
         uint256 endTime;
         uint256 priceTicketInCake;
-        uint256 discountDivisor;
-        uint256[6] rewardsBreakdown; // 0: 1 matching number // 5: 6 matching numbers
-        uint256 treasuryFee; // 500: 5% // 200: 2% // 50: 0.5%
-        uint256[6] cakePerBracket;
-        uint256[6] countWinnersPerBracket;
         uint256 firstTicketId;
         uint256 firstTicketIdNextLottery;
         uint256 amountCollectedInCake;
@@ -67,17 +64,32 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
         uint256 minTicketsToSell;
         uint256 maxTicketsToSell;
         uint256[] prizes; // in eth
+        uint256 referralReward; // 500: 5% // 200: 2% // 50: 0.5%
     }
 
     struct Ticket {
         uint32 number;
         address owner;
+        bool status;
     }
 
     struct Winners {
+        uint256 lotteryId;
+        uint256 ticket;
         uint256 prize;
         address owner;
         bool claimed;
+    }
+
+    struct TicketsSold {
+        uint256 lotteryId;
+        uint32 number;
+        address owner;
+    }
+
+    struct Rewards {
+        uint256 reward;
+        bool distributed;
     }
 
     // Mapping are cheaper than arrays
@@ -94,7 +106,15 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
     // Keep track of user ticket ids for a given lotteryId
     mapping(address => mapping(uint256 => uint256[])) private _userTicketIdsPerLotteryId;
 
-    mapping(uint256 => mapping(uint32 => uint256)) private _ticketsPerLotteryId;
+    // Keep track of ticket number for a given lotteryId
+    mapping(uint256 => uint32[]) public _ticketsSold;
+
+    // Keep track of ticket ids for a given lotteryId
+    mapping(uint256 => uint256[]) public _ticketsIds;
+
+    // Keep rewards to be distribute
+    // mapping(uint256 => Rewards) private _rewards;
+    mapping(address => mapping(uint256 => Rewards[])) private _rewards;
 
     modifier notContract() {
         require(!_isContract(msg.sender), "Contract not allowed");
@@ -128,6 +148,8 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
     event NewRandomGenerator(address indexed randomGenerator);
     event TicketsPurchase(address indexed buyer, uint256 indexed lotteryId, uint256 numberTickets);
     event TicketsClaim(address indexed claimer, uint256 amount, uint256 indexed lotteryId, uint256 numberTickets);
+    event DistributeRewards(address claimer, uint256 amount);
+    event ReturnFunds(address owner, uint256 amount);
 
     /**
      * @notice Constructor
@@ -154,12 +176,13 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
      * @param _ticketNumbers: array of ticket numbers between 1,000,000 and 1,999,999
      * @dev Callable by users
      */
-    function buyTickets(uint256 _lotteryId, uint32[] calldata _ticketNumbers)
+    function buyTickets(uint256 _lotteryId, uint32[] calldata _ticketNumbers, address _referral)
         external
         override
         notContract
         nonReentrant
     {
+        // require(address(msg.sender) != _referral, "Referral must be different than buyer");
         require(_ticketNumbers.length != 0, "No ticket specified");
         require(_ticketNumbers.length <= maxNumberTicketsPerBuyOrClaim, "Too many tickets");
 
@@ -167,18 +190,19 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
         require(block.timestamp < _lotteries[_lotteryId].endTime, "Lottery is over");
 
         require(
-            _lotteries[_lotteryId].maxTicketsToSell <=
-            _lotteries[_lotteryId].ticketsSold,
+            _lotteries[_lotteryId].ticketsSold <= _lotteries[_lotteryId].maxTicketsToSell,
             "Maximum number of lottery tickets exceeded"
         );
 
         // calculate if the tickets to buy does not exeed the max number of tickets in lottery
         uint256 tikectsSold = _lotteries[_lotteryId].ticketsSold.add(_ticketNumbers.length);
-        require(_lotteries[_lotteryId].maxTicketsToSell <= tikectsSold, "Maximum number of lottery tickets exceeded");
+        require(tikectsSold <= _lotteries[_lotteryId].maxTicketsToSell, "Maximum number of lottery tickets exceeded");
 
         // Calculate number of CAKE to this contract
-        uint256 amountCakeToTransfer = _calculateTotalPriceForBulkTickets(
-            _lotteries[_lotteryId].discountDivisor,
+        uint256 amountCakeToTransfer = _lotteries[_lotteryId].priceTicketInCake.mul(_ticketNumbers.length);
+
+        uint256 amountRewardToTransfer = _calculateRewards(
+            _lotteries[_lotteryId].referralReward,
             _lotteries[_lotteryId].priceTicketInCake,
             _ticketNumbers.length
         );
@@ -186,89 +210,63 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
         // Transfer cake tokens to this contract
         cakeToken.safeTransferFrom(address(msg.sender), address(this), amountCakeToTransfer);
 
+        // only give a reward id _referral != msg.sender
+        if (address(msg.sender) != _referral) {
+            // Transfer cake tokens to referral address
+            // cakeToken.transfer(_referral, amountRewardToTransfer);
+            // store reward to distribute on lottery close
+            _rewards[_referral][_lotteryId].push(Rewards({reward: amountRewardToTransfer,distributed: false}));
+        }
+
         // Increment the total amount collected for the lottery round
         _lotteries[_lotteryId].amountCollectedInCake += amountCakeToTransfer;
 
         for (uint256 i = 0; i < _ticketNumbers.length; i++) {
             uint32 thisTicketNumber = _ticketNumbers[i];
-
             require((thisTicketNumber >= 1000000) && (thisTicketNumber <= 1999999), "Outside range");
 
-            _numberTicketsPerLotteryId[_lotteryId][1 + (thisTicketNumber % 10)]++;
-            _numberTicketsPerLotteryId[_lotteryId][11 + (thisTicketNumber % 100)]++;
-            _numberTicketsPerLotteryId[_lotteryId][111 + (thisTicketNumber % 1000)]++;
-            _numberTicketsPerLotteryId[_lotteryId][1111 + (thisTicketNumber % 10000)]++;
-            _numberTicketsPerLotteryId[_lotteryId][11111 + (thisTicketNumber % 100000)]++;
-            _numberTicketsPerLotteryId[_lotteryId][111111 + (thisTicketNumber % 1000000)]++;
+            uint32[] memory alreadySold = getTickets(_lotteryId);
+            // validate if ticket aready sold
+            if (alreadySold.length != 0) {
+                for (uint256 j = 0; j < alreadySold.length; j++) {
+                    require((thisTicketNumber != alreadySold[j]), "Ticket already sold, choose another number and try it again.");
+                }
+            }
 
+            // used in frontend
             _userTicketIdsPerLotteryId[msg.sender][_lotteryId].push(currentTicketId);
 
-            _tickets[currentTicketId] = Ticket({number: thisTicketNumber, owner: msg.sender});
+            _tickets[currentTicketId] = Ticket({number: thisTicketNumber, owner: msg.sender, status: true});
 
-            _ticketsPerLotteryId[_lotteryId].push(currentTicketId);
+            // track ticket number sold
+            _ticketsSold[_lotteryId].push(thisTicketNumber);
+            // track tickets ids per lottery
+            _ticketsIds[_lotteryId].push(currentTicketId);
 
             // Increase lottery ticket number
             currentTicketId++;
 
             // Increase ticketsSold
-            _lotteries[_lotteryId].ticketsSold = _lotteries[_lotteryId].ticketsSold++;
+            _lotteries[_lotteryId].ticketsSold += 1;
         }
 
         emit TicketsPurchase(msg.sender, _lotteryId, _ticketNumbers.length);
     }
 
     /**
-     * @notice Claim a set of winning tickets for a lottery
-     * @param _lotteryId: lottery id
-     * @param _ticketIds: array of ticket ids
-     * @param _brackets: array of brackets for the ticket ids
-     * @dev Callable by users only, not contract!
+     * @notice validate if ticket number is already sold
+     * @param _lotteryId: lotteryId
+     * @dev Callable internally
      */
-    function claimTickets(
-        uint256 _lotteryId,
-        uint256[] calldata _ticketIds,
-        uint32[] calldata _brackets
-    ) external override notContract nonReentrant {
-        require(_ticketIds.length == _brackets.length, "Not same length");
-        require(_ticketIds.length != 0, "Length must be >0");
-        require(_ticketIds.length <= maxNumberTicketsPerBuyOrClaim, "Too many tickets");
-        require(_lotteries[_lotteryId].status == Status.Claimable, "Lottery not claimable");
+    function getTickets(uint256 _lotteryId) internal view returns(uint32[] memory) {
+        uint256 length = _ticketsSold[_lotteryId].length;
+        uint32[] memory ticketNumbers = new uint32[](length);
 
-        // Initializes the rewardInCakeToTransfer
-        uint256 rewardInCakeToTransfer;
-
-        for (uint256 i = 0; i < _ticketIds.length; i++) {
-            require(_brackets[i] < 6, "Bracket out of range"); // Must be between 0 and 5
-
-            uint256 thisTicketId = _ticketIds[i];
-
-            require(_lotteries[_lotteryId].firstTicketIdNextLottery > thisTicketId, "TicketId too high");
-            require(_lotteries[_lotteryId].firstTicketId <= thisTicketId, "TicketId too low");
-            require(msg.sender == _tickets[thisTicketId].owner, "Not the owner");
-
-            // Update the lottery ticket owner to 0x address
-            _tickets[thisTicketId].owner = address(0);
-
-            uint256 rewardForTicketId = _calculateRewardsForTicketId(_lotteryId, thisTicketId, _brackets[i]);
-
-            // Check user is claiming the correct bracket
-            require(rewardForTicketId != 0, "No prize for this bracket");
-
-            if (_brackets[i] != 5) {
-                require(
-                    _calculateRewardsForTicketId(_lotteryId, thisTicketId, _brackets[i] + 1) == 0,
-                    "Bracket must be higher"
-                );
-            }
-
-            // Increment the reward to transfer
-            rewardInCakeToTransfer += rewardForTicketId;
+        for (uint256 i = 0; i < length; i++) {
+            ticketNumbers[i] = _ticketsSold[_lotteryId][i];
         }
 
-        // Transfer money to msg.sender
-        cakeToken.safeTransfer(msg.sender, rewardInCakeToTransfer);
-
-        emit TicketsClaim(msg.sender, rewardInCakeToTransfer, _lotteryId, _ticketIds.length);
+        return (ticketNumbers);
     }
 
     /**
@@ -276,112 +274,193 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
      * @param _lotteryId: lottery id
      * @dev Callable by operator
      */
-    function closeLottery(uint256 _lotteryId) external override onlyOperator nonReentrant {
+    function closeLottery(uint256 _lotteryId)
+        external
+        override
+        onlyOperator
+        nonReentrant
+    {
         require(_lotteries[_lotteryId].status == Status.Open, "Lottery not open");
         require(block.timestamp > _lotteries[_lotteryId].endTime, "Lottery not over");
+
+        // set firstTicketIdNextLottery
         _lotteries[_lotteryId].firstTicketIdNextLottery = currentTicketId;
 
-        uint256 totalWinners = _lotteries[_lotteryId].prizes.length;
         if (_lotteries[_lotteryId].ticketsSold >= _lotteries[_lotteryId].minTicketsToSell) {
-            for (uint256 i = 0; i < totalWinners; i++) {
-                // Request a random number from the generator based on a seed
-                randomGenerator.getRandomNumber(uint256(keccak256(abi.encodePacked(_lotteryId, currentTicketId))));
-                uint32 number = randomGenerator.viewRandomResult() % _lotteries[_lotteryId].maxTicketsToSell;
-                uint256 winner = _ticketsPerLotteryId[_lotteryId][number];
-
-                _winners[currentWinnerId] = Winners({
-                    price: _lotteries[_lotteryId].prizes[i],
-                    owner: ,
-                    claimed: false
-                });
-            }
-
+            // Request a random number from the generator based on a seed
+            randomGenerator.getRandomNumber(uint256(keccak256(abi.encodePacked(_lotteryId, currentTicketId))));
+            _lotteries[_lotteryId].status = Status.Close;
+        } else {
+            _lotteries[_lotteryId].status = Status.Unrealized;
         }
-
-        _lotteries[_lotteryId].status = Status.Close;
 
         emit LotteryClose(_lotteryId, currentTicketId);
     }
 
     /**
-     * @notice Draw the final number, calculate reward in CAKE per group, and make lottery claimable
+     * @notice Claim a set of winning tickets for a lottery
      * @param _lotteryId: lottery id
-     * @param _autoInjection: reinjects funds into next lottery (vs. withdrawing all)
-     * @dev Callable by operator
+     * @param _ticketNumbers: array of ticket numbers
+     * @dev Callable by users only, not contract!
      */
-    function drawFinalNumberAndMakeLotteryClaimable(uint256 _lotteryId, bool _autoInjection)
+    function claimTickets(
+        uint256 _lotteryId,
+        uint256[] calldata _ticketNumbers
+    ) external override notContract nonReentrant {
+        require(_ticketNumbers.length != 0, "Length must be >0");
+        require(_ticketNumbers.length <= maxNumberTicketsPerBuyOrClaim, "Too many tickets");
+        require(_lotteries[_lotteryId].status == Status.Claimable, "Lottery not claimable");
+
+        // Initializes the rewardInCakeToTransfer
+        uint256 rewardInCakeToTransfer;
+
+        for (uint256 i = 0; i < _ticketNumbers.length; i++) {
+            uint256 thisTicket = _ticketNumbers[i];
+
+            uint256 length = currentWinnerId;
+            uint256 rewardForTicket = 0;
+            for (uint256 j = 0; j < length; j++) {
+                if (
+                    thisTicket == _winners[j].ticket &&
+                    msg.sender == _winners[j].owner &&
+                    _lotteryId == _winners[j].lotteryId &&
+                    _winners[j].claimed == false
+                ) {
+                    rewardForTicket = _winners[j].prize;
+                    _winners[j].claimed = true;
+                }
+            }
+
+            // Increment the reward to transfer
+            rewardInCakeToTransfer += rewardForTicket;
+        }
+        // Check user is claiming the correct bracket
+        require(rewardInCakeToTransfer != 0, "No prize for this lottery");
+        
+        // Transfer money to msg.sender
+        cakeToken.safeTransfer(msg.sender, rewardInCakeToTransfer);
+
+        emit TicketsClaim(msg.sender, rewardInCakeToTransfer, _lotteryId, _ticketNumbers.length);
+    }
+
+    /**
+     * @notice Claim a set of winning tickets for a lottery
+     * @param _lotteryId: lottery id
+     * @dev Callable by users only, not contract!
+     */
+    function withdrawFunds(
+        uint256 _lotteryId
+    ) external notContract nonReentrant {
+        require(_lotteries[_lotteryId].status == Status.Unrealized, "Lottery is claimable");
+
+        // Initializes the rewardInCakeToTransfer
+        uint256 amountToReturn;
+        uint256 length = _ticketsIds[_lotteryId].length;
+
+        for (uint256 i = 0; i < length; i++) {
+            uint256 amount = 0;
+            uint256 ticketId = _ticketsIds[_lotteryId][i];
+
+            if (_tickets[ticketId].owner == msg.sender && _tickets[ticketId].status == true) {
+                _tickets[ticketId].status = false;
+                amount = _lotteries[_lotteryId].priceTicketInCake;
+            }
+            // Increment the reward to transfer
+            amountToReturn += amount;
+        }
+        // Check if user have purchased tickets
+        require(amountToReturn != 0, "No amount to return for this lottery");
+        
+        // Transfer money to msg.sender
+        cakeToken.safeTransfer(msg.sender, amountToReturn);
+
+        emit ReturnFunds(msg.sender, amountToReturn);
+    }
+
+    /*REMOVE*/
+    function tickIds(uint256 _lotteryId) public view returns(uint256[] memory) {
+        return _ticketsIds[_lotteryId];
+    }
+
+    /**
+     * @notice shuffle index of the _ticketsIds
+     * @param _lotteryId: lottery id
+     * @param number: generated random number
+     * @dev internal!
+     */
+    function shuffle(uint256 _lotteryId, uint256 number) public view returns(uint256[] memory) {
+        uint256[] memory newArray = _ticketsIds[_lotteryId];
+        for (uint256 i = 0; i < newArray.length; i++) {
+            uint256 n = i + number % (newArray.length - i);
+            uint256 temp = newArray[n];
+            newArray[n] = newArray[i];
+            newArray[i] = temp;
+        }
+        return newArray;
+    }
+
+    /*REMOVE*/
+    function getRamd(uint256 prizesToGive) public view returns(uint256[] memory) {
+        // Request a random number from the generator based on a seed
+        // randomGenerator.getRandomNumber(uint256(keccak256(abi.encodePacked(_lotteryId, currentTicketId))));
+        // get the generated number
+        uint256 number = randomGenerator.viewRandomResult();
+        // expand the numbers (randomNumber, numberToGenerate)
+        uint256[] memory numbers = randomGenerator.expand(number, prizesToGive);
+        return numbers;
+        
+    }
+
+    function _winnerIndex(uint256 number, uint256 length) public pure returns(uint256) {
+        return number % length - 1;
+    }
+
+    function drawAndMakeLotteryClaimable(uint256 _lotteryId)
         external
-        override
         onlyOperator
         nonReentrant
     {
         require(_lotteries[_lotteryId].status == Status.Close, "Lottery not close");
         require(_lotteryId == randomGenerator.viewLatestLotteryId(), "Numbers not drawn");
 
-        // Calculate the finalNumber based on the randomResult generated by ChainLink's fallback
-        uint32 finalNumber = randomGenerator.viewRandomResult();
+        // prizes to give per lottery
+        uint256 prizesToGive = _lotteries[_lotteryId].prizes.length;
+        // get the generated number
+        uint32 number = randomGenerator.viewRandomResult();
+        // expand the numbers (randomNumber, numberToGenerate)
+        uint256[] memory numbers = randomGenerator.expand(number, prizesToGive);
+        // total tickets sold per lottery
+        uint256 length = _lotteries[_lotteryId].ticketsSold;
 
-        // Initialize a number to count addresses in the previous bracket
-        uint256 numberAddressesInPreviousBracket;
+        // iterate to get the winners
+        for (uint256 i = 0; i < prizesToGive; i++) {
+            // get the index of the winner ticket
+            uint256 winnerIndex = numbers[i] % length - 1;
 
-        // Calculate the amount to share post-treasury fee
-        uint256 amountToShareToWinners = (
-            ((_lotteries[_lotteryId].amountCollectedInCake) * (10000 - _lotteries[_lotteryId].treasuryFee))
-        ) / 10000;
+            uint256[] memory suffletickets = shuffle(_lotteryId, winnerIndex);
+            // get the id
+            uint256 shuffleId = suffletickets[winnerIndex];
+            // get the ticketId based on the shuffleId
+            // not working in second lottery
+            // uint256 ticket = _ticketsIds[_lotteryId][shuffleId];
 
-        // Initializes the amount to withdraw to treasury
-        uint256 amountToWithdrawToTreasury;
+            // store the winner to be able to claim the prize
+            _winners[currentWinnerId] = Winners({
+                lotteryId: _lotteryId,
+                ticket: _tickets[shuffleId].number,
+                prize: _lotteries[_lotteryId].prizes[i],
+                owner: _tickets[shuffleId].owner,
+                claimed: false
+            });
 
-        // Calculate prizes in CAKE for each bracket by starting from the highest one
-        for (uint32 i = 0; i < 6; i++) {
-            uint32 j = 5 - i;
-            uint32 transformedWinningNumber = _bracketCalculator[j] + (finalNumber % (uint32(10)**(j + 1)));
-
-            _lotteries[_lotteryId].countWinnersPerBracket[j] =
-                _numberTicketsPerLotteryId[_lotteryId][transformedWinningNumber] -
-                numberAddressesInPreviousBracket;
-
-            // A. If number of users for this _bracket number is superior to 0
-            if (
-                (_numberTicketsPerLotteryId[_lotteryId][transformedWinningNumber] - numberAddressesInPreviousBracket) !=
-                0
-            ) {
-                // B. If rewards at this bracket are > 0, calculate, else, report the numberAddresses from previous bracket
-                if (_lotteries[_lotteryId].rewardsBreakdown[j] != 0) {
-                    _lotteries[_lotteryId].cakePerBracket[j] =
-                        ((_lotteries[_lotteryId].rewardsBreakdown[j] * amountToShareToWinners) /
-                            (_numberTicketsPerLotteryId[_lotteryId][transformedWinningNumber] -
-                                numberAddressesInPreviousBracket)) /
-                        10000;
-
-                    // Update numberAddressesInPreviousBracket
-                    numberAddressesInPreviousBracket = _numberTicketsPerLotteryId[_lotteryId][transformedWinningNumber];
-                }
-                // A. No CAKE to distribute, they are added to the amount to withdraw to treasury address
-            } else {
-                _lotteries[_lotteryId].cakePerBracket[j] = 0;
-
-                amountToWithdrawToTreasury +=
-                    (_lotteries[_lotteryId].rewardsBreakdown[j] * amountToShareToWinners) /
-                    10000;
-            }
+            currentWinnerId++;
         }
 
         // Update internal statuses for lottery
-        _lotteries[_lotteryId].finalNumber = finalNumber;
+        _lotteries[_lotteryId].finalNumber = number;
         _lotteries[_lotteryId].status = Status.Claimable;
 
-        if (_autoInjection) {
-            pendingInjectionNextLottery = amountToWithdrawToTreasury;
-            amountToWithdrawToTreasury = 0;
-        }
-
-        amountToWithdrawToTreasury += (_lotteries[_lotteryId].amountCollectedInCake - amountToShareToWinners);
-
-        // Transfer CAKE to treasury address
-        cakeToken.safeTransfer(treasuryAddress, amountToWithdrawToTreasury);
-
-        emit LotteryNumberDrawn(currentLotteryId, finalNumber, numberAddressesInPreviousBracket);
+        emit LotteryNumberDrawn(currentLotteryId, number, prizesToGive);
     }
 
     /**
@@ -430,23 +509,19 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
      * @dev Callable by operator
      * @param _endTime: endTime of the lottery
      * @param _priceTicketInCake: price of a ticket in CAKE
-     * @param _discountDivisor: the divisor to calculate the discount magnitude for bulks
-     * @param _rewardsBreakdown: breakdown of rewards per bracket (must sum to 10,000)
-     * @param _treasuryFee: treasury fee (10,000 = 100%, 100 = 1%)
      */
     function startLottery(
         uint256 _endTime,
         uint256 _priceTicketInCake,
-        uint256 _discountDivisor,
-        uint256[6] calldata _rewardsBreakdown,
-        uint256 _treasuryFee,
-        uint256 _ticketsSold,
         uint256 _minTicketsToSell,
         uint256 _maxTicketsToSell,
-        uint256[] calldata _prizes
+        uint256[] calldata _prizes,
+        uint256 _referralReward
     ) external override onlyOperator {
         require(
-            (currentLotteryId == 0) || (_lotteries[currentLotteryId].status == Status.Claimable),
+            (currentLotteryId == 0) || 
+            (_lotteries[currentLotteryId].status == Status.Claimable) ||
+            (_lotteries[currentLotteryId].status == Status.Unrealized),
             "Not time to start lottery"
         );
 
@@ -460,18 +535,7 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
             "Outside of limits"
         );
 
-        require(_discountDivisor >= MIN_DISCOUNT_DIVISOR, "Discount divisor too low");
-        require(_treasuryFee <= MAX_TREASURY_FEE, "Treasury fee too high");
-
-        require(
-            (_rewardsBreakdown[0] +
-                _rewardsBreakdown[1] +
-                _rewardsBreakdown[2] +
-                _rewardsBreakdown[3] +
-                _rewardsBreakdown[4] +
-                _rewardsBreakdown[5]) == 10000,
-            "Rewards must equal 10000"
-        );
+        require(_referralReward <= MAX_REFERRAL_FEE, "Referral fee too high");
 
         currentLotteryId++;
 
@@ -480,19 +544,15 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
             startTime: block.timestamp,
             endTime: _endTime,
             priceTicketInCake: _priceTicketInCake,
-            discountDivisor: _discountDivisor,
-            rewardsBreakdown: _rewardsBreakdown,
-            treasuryFee: _treasuryFee,
-            cakePerBracket: [uint256(0), uint256(0), uint256(0), uint256(0), uint256(0), uint256(0)],
-            countWinnersPerBracket: [uint256(0), uint256(0), uint256(0), uint256(0), uint256(0), uint256(0)],
             firstTicketId: currentTicketId,
             firstTicketIdNextLottery: currentTicketId,
             amountCollectedInCake: pendingInjectionNextLottery,
             finalNumber: 0,
-            ticketsSold: _ticketsSold,
+            ticketsSold: 0,
             minTicketsToSell: _minTicketsToSell,
             maxTicketsToSell: _maxTicketsToSell,
-            prizes: _prizes
+            prizes: _prizes,
+            referralReward: _referralReward
         });
 
         emit LotteryOpen(
@@ -570,23 +630,6 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
     }
 
     /**
-     * @notice Calculate price of a set of tickets
-     * @param _discountDivisor: divisor for the discount
-     * @param _priceTicket price of a ticket (in CAKE)
-     * @param _numberTickets number of tickets to buy
-     */
-    function calculateTotalPriceForBulkTickets(
-        uint256 _discountDivisor,
-        uint256 _priceTicket,
-        uint256 _numberTickets
-    ) external pure returns (uint256) {
-        require(_discountDivisor >= MIN_DISCOUNT_DIVISOR, "Must be >= MIN_DISCOUNT_DIVISOR");
-        require(_numberTickets != 0, "Number of tickets must be > 0");
-
-        return _calculateTotalPriceForBulkTickets(_discountDivisor, _priceTicket, _numberTickets);
-    }
-
-    /**
      * @notice View current lottery id
      */
     function viewCurrentLotteryId() external view override returns (uint256) {
@@ -630,28 +673,28 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
      * @notice View rewards for a given ticket, providing a bracket, and lottery id
      * @dev Computations are mostly offchain. This is used to verify a ticket!
      * @param _lotteryId: lottery id
-     * @param _ticketId: ticket id
-     * @param _bracket: bracket for the ticketId to verify the claim and calculate rewards
+     * @param _ticketNumber: ticket number
      */
-    function viewRewardsForTicketId(
+    function viewRewardsForTicketNumber(
         uint256 _lotteryId,
-        uint256 _ticketId,
-        uint32 _bracket
+        uint256 _ticketNumber
     ) external view returns (uint256) {
         // Check lottery is in claimable status
         if (_lotteries[_lotteryId].status != Status.Claimable) {
             return 0;
         }
 
+        /*
         // Check ticketId is within range
         if (
-            (_lotteries[_lotteryId].firstTicketIdNextLottery < _ticketId) &&
-            (_lotteries[_lotteryId].firstTicketId >= _ticketId)
+            (_lotteries[_lotteryId].firstTicketIdNextLottery < _ticketNumber) &&
+            (_lotteries[_lotteryId].firstTicketId >= _ticketNumber)
         ) {
             return 0;
         }
+        */
 
-        return _calculateRewardsForTicketId(_lotteryId, _ticketId, _bracket);
+        return _getRewardsForTicketNumber(_lotteryId, _ticketNumber);
     }
 
     /**
@@ -707,46 +750,28 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
     /**
      * @notice Calculate rewards for a given ticket
      * @param _lotteryId: lottery id
-     * @param _ticketId: ticket id
-     * @param _bracket: bracket for the ticketId to verify the claim and calculate rewards
+     * @param _ticketNumber: ticket number
      */
-    function _calculateRewardsForTicketId(
+    function _getRewardsForTicketNumber(
         uint256 _lotteryId,
-        uint256 _ticketId,
-        uint32 _bracket
+        uint256 _ticketNumber
     ) internal view returns (uint256) {
-        // Retrieve the winning number combination
-        uint32 winningTicketNumber = _lotteries[_lotteryId].finalNumber;
+        uint256 length = currentWinnerId;
+        
+        uint256 rewardForTicket = 0;
 
-        // Retrieve the user number combination from the ticketId
-        uint32 userNumber = _tickets[_ticketId].number;
-
-        // Apply transformation to verify the claim provided by the user is true
-        uint32 transformedWinningNumber = _bracketCalculator[_bracket] +
-            (winningTicketNumber % (uint32(10)**(_bracket + 1)));
-
-        uint32 transformedUserNumber = _bracketCalculator[_bracket] + (userNumber % (uint32(10)**(_bracket + 1)));
-
-        // Confirm that the two transformed numbers are the same, if not throw
-        if (transformedWinningNumber == transformedUserNumber) {
-            return _lotteries[_lotteryId].cakePerBracket[_bracket];
-        } else {
-            return 0;
+        for (uint256 i = 0; i < length; i++) {
+            if (
+                _ticketNumber == _winners[i].ticket &&
+                msg.sender == _winners[i].owner &&
+                _lotteryId == _winners[i].lotteryId &&
+                _winners[i].claimed == false
+            ) {
+                rewardForTicket = _winners[i].prize;
+            }
         }
-    }
 
-    /**
-     * @notice Calculate final price for bulk of tickets
-     * @param _discountDivisor: divisor for the discount (the smaller it is, the greater the discount is)
-     * @param _priceTicket: price of a ticket
-     * @param _numberTickets: number of tickets purchased
-     */
-    function _calculateTotalPriceForBulkTickets(
-        uint256 _discountDivisor,
-        uint256 _priceTicket,
-        uint256 _numberTickets
-    ) internal pure returns (uint256) {
-        return (_priceTicket * _numberTickets * (_discountDivisor + 1 - _numberTickets)) / _discountDivisor;
+        return rewardForTicket;
     }
 
     /**
@@ -758,5 +783,49 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
             size := extcodesize(_addr)
         }
         return size > 0;
+    }
+
+    /**
+     * @notice Return amount to user when lottery is not realized
+     * @param _referralReward: address
+     * @param _priceTicket: ticket price
+     * @param _numberTickets: number of tickets
+     * @dev Callable by users only, not contract!
+     */
+    function _calculateRewards(
+        uint256 _referralReward,
+        uint256 _priceTicket,
+        uint256 _numberTickets
+    ) internal pure returns (uint256) {
+        return (_priceTicket.mul(_numberTickets).mul(_referralReward).div(1e4));
+    }
+
+    /**
+     * @notice Return amount to user when lottery is not realized
+     * @param _lotteryId: lottery id
+     * @dev Callable by users only, not contract!
+     */
+    function distributeReferralRewards(
+        uint256 _lotteryId
+    ) external notContract nonReentrant {
+        require(_lotteries[_lotteryId].status == Status.Claimable, "Lottery not claimable");
+        // Initializes the rewardInCakeToTransfer
+        uint256 rewardInCakeToTransfer;
+
+        uint256 records = _rewards[msg.sender][_lotteryId].length;
+
+        for (uint256 i = 0; i < records; i++) {
+            uint256 reward = 0;
+            if (_rewards[msg.sender][_lotteryId][i].distributed == false) {
+                _rewards[msg.sender][_lotteryId][i].distributed = true;
+                reward = _rewards[msg.sender][_lotteryId][i].reward;
+            }
+            rewardInCakeToTransfer += reward;
+        }
+
+        require(rewardInCakeToTransfer != 0, "No rewards for this lottery");
+
+        cakeToken.transfer(msg.sender, rewardInCakeToTransfer);
+        emit DistributeRewards(msg.sender, rewardInCakeToTransfer);
     }
 }

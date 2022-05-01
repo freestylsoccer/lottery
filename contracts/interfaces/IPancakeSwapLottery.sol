@@ -8,19 +8,17 @@ interface IPancakeSwapLottery {
      * @param _ticketNumbers: array of ticket numbers between 1,000,000 and 1,999,999
      * @dev Callable by users
      */
-    function buyTickets(uint256 _lotteryId, uint32[] calldata _ticketNumbers) external;
+    function buyTickets(uint256 _lotteryId, uint32[] calldata _ticketNumbers, address referral) external;
 
     /**
      * @notice Claim a set of winning tickets for a lottery
      * @param _lotteryId: lottery id
-     * @param _ticketIds: array of ticket ids
-     * @param _brackets: array of brackets for the ticket ids
+     * @param _ticketNumbers: array of ticket numbers
      * @dev Callable by users only, not contract!
      */
     function claimTickets(
         uint256 _lotteryId,
-        uint256[] calldata _ticketIds,
-        uint32[] calldata _brackets
+        uint256[] calldata _ticketNumbers
     ) external;
 
     /**
@@ -29,14 +27,6 @@ interface IPancakeSwapLottery {
      * @dev Callable by operator
      */
     function closeLottery(uint256 _lotteryId) external;
-
-    /**
-     * @notice Draw the final number, calculate reward in CAKE per group, and make lottery claimable
-     * @param _lotteryId: lottery id
-     * @param _autoInjection: reinjects funds into next lottery (vs. withdrawing all)
-     * @dev Callable by operator
-     */
-    function drawFinalNumberAndMakeLotteryClaimable(uint256 _lotteryId, bool _autoInjection) external;
 
     /**
      * @notice Inject funds
@@ -51,20 +41,14 @@ interface IPancakeSwapLottery {
      * @dev Callable by operator
      * @param _endTime: endTime of the lottery
      * @param _priceTicketInCake: price of a ticket in CAKE
-     * @param _discountDivisor: the divisor to calculate the discount magnitude for bulks
-     * @param _rewardsBreakdown: breakdown of rewards per bracket (must sum to 10,000)
-     * @param _treasuryFee: treasury fee (10,000 = 100%, 100 = 1%)
      */
     function startLottery(
         uint256 _endTime,
         uint256 _priceTicketInCake,
-        uint256 _discountDivisor,
-        uint256[6] calldata _rewardsBreakdown,
-        uint256 _treasuryFee,
-        uint256 _ticketsSold,
         uint256 _minTicketsToSell,
         uint256 _maxTicketsToSell,
-        uint256[] calldata _prizes
+        uint256[] calldata _prizes,
+        uint256 _referralReward
     ) external;
 
     /**

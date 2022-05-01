@@ -1,0 +1,10 @@
+pasos lottery
+*  close
+  requiere que la loteria este abierta
+  requiere que la loteria block.timestap haya llegado a su fin
+  asignar el primer id a la siguiente loteria
+  identificar el número de premios a entregar
+  requiere que los boletos vendidos sean >= minimo a vender
+  generar el número aleatorio
+  expandir el número aleatorio, pasando (numero_aleatorio, numero_premios)
+  identificar el número de tickets vendidos
