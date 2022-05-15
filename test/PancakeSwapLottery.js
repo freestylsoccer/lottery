@@ -25,7 +25,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
   const _totalInitSupply = parseEther("10000");
 
   let _lengthLottery = new BN("14400"); // 4h
-  let _priceTicketInCake = parseEther("0.5");
+  let _priceTicketInBusd = parseEther("0.5");
   let _discountDivisor = "0";
 
   let _rewardsBreakdown = ["200", "300", "500", "1500", "2500", "5000"];
@@ -68,16 +68,6 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
     });
 
     it("Users mint and approve CAKE to be used in the lottery", async () => {
-      // console.log(parseEther("100"));
-      await mockCake.mintTokens(parseEther("25"), { from: alice });
-      await mockCake.approve(lottery.address, parseEther("25"), {
-        from: alice,
-      });
-
-      await mockCake.transfer(lottery.address, parseEther("25"));
-      // let balance = await mockCake.balanceOf(lottery.address);
-      // console.log(balance.toString());
-
       for (let thisUser of [alice, bob, carol, david, erin]) {
         await mockCake.mintTokens(parseEther("1000000"), { from: thisUser });
         await mockCake.approve(lottery.address, parseEther("1000000000000000"), {
@@ -91,7 +81,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
       result = await lottery.startLottery(
         endTime,
-        _priceTicketInCake,
+        _priceTicketInBusd,
         _minTicketsToSell,
         _maxTicketsToSell,
         _prizes,
@@ -103,15 +93,13 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         lotteryId: "1",
         startTime: (await time.latest()).toString(),
         endTime: endTime.toString(),
-        priceTicketInCake: _priceTicketInCake.toString(),
+        priceTicketInBusd: _priceTicketInBusd.toString(),
         firstTicketId: "0",
         injectedAmount: "0",
       });
 
       console.info(
-        `        --> Cost to start the lottery: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to start the lottery: ${result.receipt.gasUsed}`
       );
     });
 
@@ -220,13 +208,10 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       ];
 
       result = await lottery.buyTickets("1", _ticketsBought, _rewardsAddress, { from: bob });
-
       expectEvent(result, "TicketsPurchase", { buyer: bob, lotteryId: "1", numberTickets: "100" });
 
       console.info(
-        `        --> Cost to buy the first 100 tickets: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to buy the first 100 tickets: ${result.receipt.gasUsed}`
       );
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -253,15 +238,13 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
     });
 
     it("Carol buys 1 ticket", async () => {
-      const _ticketsBought = ["1111111"];
+      const _ticketsBought = ["1101010"];
       // Carol buys 1/1/1/1/1/1
       result = await lottery.buyTickets("1", _ticketsBought, _rewardsAddress, { from: carol });
       expectEvent(result, "TicketsPurchase", { buyer: carol, lotteryId: "1", numberTickets: "1" });
 
       console.info(
-        `        --> Cost to buy a stand-alone ticket: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to buy a stand-alone ticket: ${result.receipt.gasUsed}`
       );
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -289,9 +272,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       expectEvent(result, "TicketsPurchase", { buyer: david, lotteryId: "1", numberTickets: "10" });
 
       console.info(
-        `        --> Cost to buy 10 tickets: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to buy 10 tickets: ${result.receipt.gasUsed}`
       );
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -308,9 +289,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       expectEvent(result, "LotteryInjection", { lotteryId: "1", injectedAmount: parseEther("1000000").toString() });
 
       console.info(
-        `        --> Cost to do injection: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to do injection: ${result.receipt.gasUsed}`
       );
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -428,16 +407,20 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       expectEvent(result, "TicketsPurchase", { buyer: erin, lotteryId: "1", numberTickets: "100" });
       
       console.info(
-        `        --> Cost to buy the first 100 tickets: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to buy the first 100 tickets: ${result.receipt.gasUsed}`
       );
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
-        from: bob,
+        from: erin,
         to: lottery.address,
         value: parseEther("50").toString(),
       });
+    });
+
+    it("Carol buys 2 tickets revert already sold", async () => {
+      const _ticketsBought = ["1703000","1111112"];
+      // Carol buys 1/1/1/1/1/2
+      await expectRevert(lottery.buyTickets("1", _ticketsBought, _rewardsAddress, { from: carol }), "Ticket already sold, choose another number and try it again.");
     });
 
     it("Operator closes lottery", async () => {
@@ -450,9 +433,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       expectEvent(result, "LotteryClose", { lotteryId: "1", firstTicketIdNextLottery: "211" });
 
       console.info(
-        `        --> Cost to close lottery: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to close lottery: ${result.receipt.gasUsed}`
       );
     });
 
@@ -467,83 +448,36 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       // 3 claimable
       assert.equal(status[0].toString(), "3");
       assert.equal(status[7].toString(), "1999999");
-      /*
-      console.log(bob) // 3
-      console.log(carol) // 1
-      console.log(david) // none
-      console.log(erin) // 2
-      let winners = await lottery._winners("0");
-      console.log("lottery id");
-      console.log(winners.lotteryId.toString());
-      console.log("lottery ticket");
-      console.log(winners.ticket.toString());
-      console.log("lottery prize");
-      console.log(winners.prize.toString());
-      console.log("lottery owner");
-      console.log(winners.owner.toString());
-      console.log("lottery claimed");
-      console.log(winners.claimed.toString());
-      console.log("--------------------------------------------------------------------------------------------------");
-      winners = await lottery._winners("1");
-      console.log("lottery id");
-      console.log(winners.lotteryId.toString());
-      console.log("lottery ticket");
-      console.log(winners.ticket.toString());
-      console.log("lottery prize");
-      console.log(winners.prize.toString());
-      console.log("lottery owner");
-      console.log(winners.owner.toString());
-      console.log("lottery claimed");
-      console.log(winners.claimed.toString());
-      console.log("--------------------------------------------------------------------------------------------------");
-      winners = await lottery._winners("2");
-      console.log("lottery id");
-      console.log(winners.lotteryId.toString());
-      console.log("lottery ticket");
-      console.log(winners.ticket.toString());
-      console.log("lottery prize");
-      console.log(winners.prize.toString());
-      console.log("lottery owner");
-      console.log(winners.owner.toString());
-      console.log("lottery claimed");
-      console.log(winners.claimed.toString());
-      */
-      /*
-      expectEvent(result, "LotteryNumberDrawn", {
-        lotteryId: "1",
-        finalNumber: "1999999",
-        countWinningTickets: "3",
-      });
-      */
-
-      /*
-      expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
-        from: lottery.address,
-        to: treasury,
-        value: parseEther("2010.6005").toString(),
-      });
-      */
-
       console.info(
-        `        --> Cost to draw numbers (w/o ChainLink): ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to draw numbers (w/o ChainLink): ${result.receipt.gasUsed}`
       );
     });
+    
+    it("user has referral rewards amount to claim (true)", async () => {
+      console.log(await lottery.hasReferralRewardsToClaim("1", { from: injector }));
+    });
 
-    it("Claim rewards", async () => {
+    it("Claim referral rewards", async () => {
       // reward amount = tickets * price * reward = 211 * 0.5 * 0.05 = 5.275
       let resutl = await lottery.distributeReferralRewards("1", { from: injector });
-
       expectEvent(resutl, "DistributeRewards", { claimer: injector, amount: parseEther("5.275").toString() });
+
+      console.info(
+        `        --> Cost to claim referral rewards: ${result.receipt.gasUsed}`
+      );
+
       await expectRevert(lottery.distributeReferralRewards("1", { from: carol }), "No rewards for this lottery");
+    });
+
+    it("user has referral rewards amount to claim (false)", async () => {
+      console.log(await lottery.hasReferralRewardsToClaim("1", { from: injector }));
     });
 
     it("Carol claims 1st place", async () => {
       // 100,000 CAKE 1st place
       result = await lottery.claimTickets(
         "1",
-        ["1111111"],
+        ["1101010"],
         { from: carol }
       );
 
@@ -555,9 +489,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       });
 
       console.info(
-        `        --> Cost to claim 1 ticket: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to claim 1 ticket: ${result.receipt.gasUsed}`
       );
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -685,9 +617,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       });
 
       console.info(
-        `        --> Cost to claim 1 ticket: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to claim 100 ticket: ${result.receipt.gasUsed}`
       );
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -815,9 +745,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       });
 
       console.info(
-        `        --> Cost to claim 1 ticket: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-          result.receipt.gasUsed
-        )})`
+        `        --> Cost to claim 100 ticket: ${result.receipt.gasUsed}`
       );
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -851,11 +779,11 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
     });
 
     describe("LOTTERY #2 - CUSTOM RANDOMNESS - Exceptions", async () => {
-      it("Operator cannot close lottery that is in claiming", async () => {
+      it("Operator cannot close lottery not open", async () => {
         await expectRevert(lottery.closeLottery("1", { from: operator }), "Lottery not open");
       });
 
-      it("Operator cannot inject funds in a lottery that is Open status", async () => {
+      it("Operator cannot inject funds in a lottery that is not Open status", async () => {
         await expectRevert(lottery.injectFunds("1", parseEther("10"), { from: alice }), "Lottery not open");
         await expectRevert(lottery.injectFunds("2", parseEther("10"), { from: alice }), "Lottery not open");
       });
@@ -885,7 +813,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         await expectRevert(
           lottery.startLottery(
             endTimeTarget,
-            _priceTicketInCake,
+            _priceTicketInBusd,
             _minTicketsToSell,
             _maxTicketsToSell,
             _prizes,
@@ -902,7 +830,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         await expectRevert(
           lottery.startLottery(
             endTimeTarget,
-            _priceTicketInCake,
+            _priceTicketInBusd,
             _minTicketsToSell,
             _maxTicketsToSell,
             _prizes,
@@ -959,10 +887,10 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
         result = await lottery.startLottery(
           endTime,
-          _priceTicketInCake,
+          _priceTicketInBusd,
           "2",
           _maxTicketsToSell,
-          _prizes,
+          [parseEther("1"),parseEther("0.5")],
           _referralReward,
           { from: operator }
         );
@@ -971,7 +899,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           lotteryId: "2",
           startTime: (await time.latest()).toString(),
           endTime: endTime.toString(),
-          priceTicketInCake: _priceTicketInCake.toString(),
+          priceTicketInBusd: _priceTicketInBusd.toString(),
           firstTicketId: "211",
           injectedAmount: "0",
         });
@@ -992,7 +920,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         await expectRevert(
           lottery.startLottery(
             _lengthLottery,
-            _priceTicketInCake,
+            _priceTicketInBusd,
             _minTicketsToSell,
             _maxTicketsToSell,
             _prizes,
@@ -1054,9 +982,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "TicketsPurchase", { buyer: david, lotteryId: "2", numberTickets: "10" });
   
         console.info(
-          `        --> Cost to buy 10 tickets: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to buy 10 tickets: ${result.receipt.gasUsed}`
         );
   
         expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -1086,43 +1012,6 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           "Lottery not in claimable"
         );
       });
-      /*
-      it("test tickets", async () => {
-        let sm = await lottery.tickIds("2")
-        for (var k = 0; k < sm.length; k++) {
-          console.log(sm[k].toString())
-        }
-        console.log("--------------------------------------------------------------------------------------------------");
-        let rand = await lottery.getRamd("3");
-        console.log(rand[0].toString());
-        console.log(rand[1].toString());
-        console.log(rand[2].toString());
-        console.log("--------------------------------------------------------------------------------------------------");
-        let index = await lottery._winnerIndex(rand[0].toString(), "3");
-        console.log(index.toString());
-        console.log("--------------------------------------------------------------------------------------------------");
-        let arr = await lottery.shuffle("2", index.toString());
-        for (var i = 0; i < arr.length; i++) {
-          console.log(arr[i].toString());
-        }
-        console.log("--------------------------------------------------------------------------------------------------");
-        index = await lottery._winnerIndex(rand[1].toString(), "3");
-        console.log(index.toString());
-        console.log("--------------------------------------------------------------------------------------------------");
-        let arr2 = await lottery.shuffle("2", index.toString());
-        for (var i = 0; i < arr2.length; i++) {
-          console.log(arr2[i].toString());
-        }
-        console.log("--------------------------------------------------------------------------------------------------");
-        index = await lottery._winnerIndex(rand[2].toString(), "3");
-        console.log(index.toString());
-        console.log("--------------------------------------------------------------------------------------------------");
-        let arr3 = await lottery.shuffle("2", index.toString());
-        for (var j = 0; j < arr3.length; j++) {
-          console.log(arr3[j].toString());
-        }
-      });
-      */
 
       it("Operator cannot draw numbers if the lotteryId isn't updated in RandomGenerator", async () => {
         await randomNumberGenerator.setNextRandomResult("199999994", { from: alice });
@@ -1143,7 +1032,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "LotteryNumberDrawn", {
           lotteryId: "2",
           finalNumber: "1999994",
-          countWinningTickets: "3",
+          countWinningTickets: "2",
         });
 
         expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -1152,13 +1041,101 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           value: parseEther("3620.0804").toString(),
         });
       });
+      /*
+      it("test tickets", async () => {
+        let tickets = await lottery._winners(3)
+        console.log(tickets[0].toString());
+        console.log(tickets[1].toString());
+        console.log(tickets[2].toString());
+        console.log(tickets[3].toString());
+        console.log(tickets[4].toString());
+        console.log("--------------------------------------------------------------------------------------------------");
+        let ticket2 = await lottery._winners(4)
+        console.log(ticket2[0].toString());
+        console.log(ticket2[1].toString());
+        console.log(ticket2[2].toString());
+        console.log(ticket2[3].toString());
+        console.log(tickets[4].toString());
+        console.log("--------------------------------------------------------------------------------------------------");
+        let ticket3 = await lottery._winners(5)
+        console.log(ticket3[0].toString());
+        console.log(ticket3[1].toString());
+        console.log(ticket3[2].toString());
+        console.log(ticket3[3].toString());
+        console.log(tickets[4].toString());
+  
+        let rand = await lottery.getRamd("2");
+        console.log(rand[0].toString());
+        console.log(rand[1].toString());
+        console.log("--------------------------------------------------------------------------------------------------");
+  
+        let arr = await lottery.shuffle("2", rand[0].toString())
+        // console.log(arr.length);
+        for (var i = 0; i < arr.length; i++) {
+          console.log(arr[i].toString());
+        }
+        console.log("--------------------------------------------------------------------------------------------------");
+        arr2 = await lottery.shuffle("2", rand[1].toString())
+        for (var j = 0; j < arr2.length; j++) {
+          console.log(arr2[j].toString());
+        }
+      });
+      */
+      
+      it("David claim 2 winner tickets", async () => {
+        // sin suerte david 
+        const _ticketsBought = [
+          "1111112",
+          "1222222",
+          "1333333",
+          "1444444",
+          "1555555",
+          "1666666",
+          "1777777",
+          "1888888",
+          "1014001",
+          "1999999",
+        ];
+
+        result = await lottery.claimTickets(
+          "2",
+          _ticketsBought,
+          { from: david }
+        );
+  
+        expectEvent(result, "TicketsClaim", {
+          claimer: david,
+          amount: parseEther("1.5").toString(),
+          lotteryId: "2",
+          numberTickets: "10",
+        });
+  
+        console.info(
+          `        --> Cost to claim 10 ticket: ${result.receipt.gasUsed}`
+        );
+  
+        expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
+          from: lottery.address,
+          to: erin,
+          value: parseEther("1.5").toString(),
+        });
+      });
+
+      it("Bob, Erin and Carol claim no winner ticket", async () => {
+        await expectRevert(lottery.claimTickets("2", ["1999919","1569455"], { from: bob }), "No prize for this lottery");
+        await expectRevert(lottery.claimTickets("2", ["1014001"], { from: erin }), "No prize for this lottery");
+        await expectRevert(lottery.claimTickets("2", 
+          ["1111112","1222222","1333333","1444444","1555555","1666666","1777777","1888888","1014001","1999999",],
+          { from: carol }), "No prize for this lottery"
+        );
+      });
 
       it("Lottery starts, close, and numbers get drawn if min tickets to sell target not reached", async () => {
         endTime = new BN(await time.latest()).add(_lengthLottery);
 
         result = await lottery.startLottery(
           endTime,
-          _priceTicketInCake,
+          _priceTicketInBusd,
           "2",
           _maxTicketsToSell,
           _prizes,
@@ -1170,7 +1147,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           lotteryId: "3",
           startTime: (await time.latest()).toString(),
           endTime: endTime.toString(),
-          priceTicketInCake: _priceTicketInCake.toString(),
+          priceTicketInBusd: _priceTicketInBusd.toString(),
           firstTicketId: "223",
           injectedAmount: "0",
         });
@@ -1182,7 +1159,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
         await randomNumberGenerator.changeLatestLotteryId({ from: alice });
 
-        // 0 winner
+        // 0 winner and lottery status = unrealized
         await expectRevert(lottery.drawAndMakeLotteryClaimable("3", { from: operator }), "Lottery not close");
 
       });
@@ -1192,10 +1169,10 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
         result = await lottery.startLottery(
           endTime,
-          _priceTicketInCake,
+          _priceTicketInBusd,
           _minTicketsToSell,
           _maxTicketsToSell,
-          _prizes,
+          [parseEther("2"), parseEther("1"), parseEther("0.5")],
           _referralReward,
           { from: operator }
         );
@@ -1204,7 +1181,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           lotteryId: "4",
           startTime: (await time.latest()).toString(),
           endTime: endTime.toString(),
-          priceTicketInCake: _priceTicketInCake.toString(),
+          priceTicketInBusd: _priceTicketInBusd.toString(),
           firstTicketId: "223",
           injectedAmount: "0",
         });
@@ -1319,9 +1296,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "TicketsPurchase", { buyer: bob, lotteryId: "4", numberTickets: "100" });
   
         console.info(
-          `        --> Cost to buy the first 100 tickets: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to buy the first 100 tickets: ${result.receipt.gasUsed}`
         );
   
         expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -1338,9 +1313,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "TicketsPurchase", { buyer: carol, lotteryId: "4", numberTickets: "1" });
   
         console.info(
-          `        --> Cost to buy a stand-alone ticket: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to buy a stand-alone ticket: ${result.receipt.gasUsed}`
         );
   
         expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -1368,9 +1341,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "TicketsPurchase", { buyer: david, lotteryId: "4", numberTickets: "10" });
   
         console.info(
-          `        --> Cost to buy 10 tickets: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to buy 10 tickets: ${result.receipt.gasUsed}`
         );
   
         expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -1489,9 +1460,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "TicketsPurchase", { buyer: erin, lotteryId: "4", numberTickets: "100" });
         
         console.info(
-          `        --> Cost to buy the first 100 tickets: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to buy the first 100 tickets: ${result.receipt.gasUsed}`
         );
   
         expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -1511,9 +1480,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "LotteryClose", { lotteryId: "4", firstTicketIdNextLottery: "434" });
   
         console.info(
-          `        --> Cost to close lottery: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to close lottery: ${result.receipt.gasUsed}`
         );
       });
   
@@ -1526,9 +1493,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         assert.equal(status[7].toString(), "1999996");
   
         console.info(
-          `        --> Cost to draw numbers (w/o ChainLink): ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to draw numbers (w/o ChainLink): ${result.receipt.gasUsed}`
         );
       });
 
@@ -1542,7 +1507,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
         result = await lottery.startLottery(
           endTime,
-          _priceTicketInCake,
+          _priceTicketInBusd,
           _minTicketsToSell,
           _maxTicketsToSell,
           _prizes,
@@ -1554,7 +1519,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           lotteryId: "5",
           startTime: (await time.latest()).toString(),
           endTime: endTime.toString(),
-          priceTicketInCake: _priceTicketInCake.toString(),
+          priceTicketInBusd: _priceTicketInBusd.toString(),
           firstTicketId: "434",
           injectedAmount: "0",
         });
@@ -1567,9 +1532,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "TicketsPurchase", { buyer: carol, lotteryId: "5", numberTickets: "1" });
   
         console.info(
-          `        --> Cost to buy a stand-alone ticket: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to buy a stand-alone ticket: ${result.receipt.gasUsed}`
         );
   
         expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -1597,9 +1560,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "TicketsPurchase", { buyer: david, lotteryId: "5", numberTickets: "10" });
   
         console.info(
-          `        --> Cost to buy 10 tickets: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to buy 10 tickets: ${result.receipt.gasUsed}`
         );
   
         expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
@@ -1620,10 +1581,12 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         expectEvent(result, "LotteryClose", { lotteryId: "5", firstTicketIdNextLottery: "445" });
   
         console.info(
-          `        --> Cost to close lottery: ${gasToBNB(result.receipt.gasUsed)} (USD: ${gasToUSD(
-            result.receipt.gasUsed
-          )})`
+          `        --> Cost to close lottery: ${result.receipt.gasUsed}`
         );
+      });
+
+      it("get funds to withdraw in a unrealized lottery (true)", async () => {
+        console.log(await lottery.hasAmountToWithdraw("5", { from: carol }));
       });
 
       it("Withdraw funds in a unrealized lottery", async () => {
@@ -1636,461 +1599,12 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         await expectRevert(lottery.withdrawFunds("5", { from: bob }), "No amount to return for this lottery");
       });
 
+      it("get funds to withdraw after witdraw in a unrealized lottery (false)", async () => {
+        console.log(await lottery.hasAmountToWithdraw("5", { from: carol }));
+      });
+
       it("Claim rewards when lottery unrealized", async () => {
         await expectRevert(lottery.distributeReferralRewards("5", { from: injector }), "Lottery not claimable");
-      });
-
-    });
-
-    /*
-    describe("LOTTERY #2 - CUSTOM RANDOMNESS - Exceptions", async () => {
-      it("Operator cannot close lottery that is in claiming", async () => {
-        await expectRevert(lottery.closeLottery("1", { from: operator }), "Lottery not open");
-      });
-
-      it("Operator cannot inject funds in a lottery that is Open status", async () => {
-        await expectRevert(lottery.injectFunds("1", parseEther("10"), { from: alice }), "Lottery not open");
-        await expectRevert(lottery.injectFunds("2", parseEther("10"), { from: alice }), "Lottery not open");
-      });
-
-      it("Operator cannot draw numbers for previous lottery", async () => {
-        await expectRevert(
-          lottery.drawFinalNumberAndMakeLotteryClaimable("1", true, { from: operator }),
-          "Lottery not close"
-        );
-      });
-
-      it("User cannot buy 1 ticket for old lottery", async () => {
-        await expectRevert(lottery.buyTickets("1", ["1999999"], _rewardsAddress, { from: bob }), "Lottery is not open");
-      });
-
-      it("User cannot buy 1 ticket for future lottery", async () => {
-        await expectRevert(lottery.buyTickets("2", ["1999999"], _rewardsAddress, { from: bob }), "Lottery is not open");
-      });
-
-      it("User cannot claim a ticket with wrong bracket", async () => {
-        await expectRevert(lottery.claimTickets("1", ["104"], ["6"], { from: david }), "Bracket out of range");
-        await expectRevert(lottery.claimTickets("1", ["104"], ["5"], { from: david }), "No prize for this bracket");
-        await expectRevert(lottery.claimTickets("1", ["104"], ["4"], { from: david }), "No prize for this bracket");
-        await expectRevert(lottery.claimTickets("1", ["104"], ["3"], { from: david }), "No prize for this bracket");
-        await expectRevert(lottery.claimTickets("1", ["104"], ["2"], { from: david }), "No prize for this bracket");
-        await expectRevert(lottery.claimTickets("1", ["104"], ["1"], { from: david }), "No prize for this bracket");
-        await expectRevert(lottery.claimTickets("1", ["104"], ["0"], { from: david }), "No prize for this bracket");
-      });
-
-      it("User cannot claim twice a winning ticket", async () => {
-        await expectRevert(lottery.claimTickets("1", ["110"], ["5"], { from: david }), "Not the owner");
-      });
-
-      it("Operator cannot start lottery if length is too short/long", async () => {
-        const currentLengthLottery = _lengthLottery;
-
-        _lengthLottery = await lottery.MIN_LENGTH_LOTTERY();
-
-        let endTimeTarget = new BN(await time.latest()).add(_lengthLottery).sub(new BN("10"));
-
-        await expectRevert(
-          lottery.startLottery(endTimeTarget, _priceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Lottery length outside of range"
-        );
-
-        _lengthLottery = await lottery.MAX_LENGTH_LOTTERY();
-
-        endTimeTarget = new BN(await time.latest()).add(_lengthLottery).add(new BN("100"));
-
-        await expectRevert(
-          lottery.startLottery(endTimeTarget, _priceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Lottery length outside of range"
-        );
-
-        // Set it back to previous value
-        _lengthLottery = currentLengthLottery;
-
-        endTime = new BN(await time.latest()).add(_lengthLottery);
-      });
-
-      it("Operator cannot start lottery if discount divisor is too low", async () => {
-        const currentDiscountDivisor = _discountDivisor;
-
-        _discountDivisor = new BN(await lottery.MIN_DISCOUNT_DIVISOR()).sub(new BN("1"));
-
-        await expectRevert(
-          lottery.startLottery(endTime, _priceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Discount divisor too low"
-        );
-
-        // Set it back to previous value
-        _discountDivisor = currentDiscountDivisor;
-      });
-
-      it("Operator cannot start lottery if treasury fee too high", async () => {
-        const currentTreasuryFee = _treasuryFee;
-        _treasuryFee = new BN(await lottery.MAX_TREASURY_FEE()).add(new BN("1"));
-
-        await expectRevert(
-          lottery.startLottery(endTime, _priceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Treasury fee too high"
-        );
-
-        // Set it back to previous value
-        _treasuryFee = currentTreasuryFee;
-      });
-
-      it("Operator cannot start lottery if ticket price too low or too high", async () => {
-        let newPriceTicketInCake = parseEther("0.0049999999");
-
-        await expectRevert(
-          lottery.startLottery(endTime, newPriceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Outside of limits"
-        );
-
-        newPriceTicketInCake = parseEther("0.0049999999");
-
-        await expectRevert(
-          lottery.startLottery(endTime, newPriceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Outside of limits"
-        );
-      });
-
-      it("Operator cannot start lottery if wrong reward breakdown", async () => {
-        const currentRewardBreakdown = _rewardsBreakdown;
-
-        _rewardsBreakdown = ["0", "300", "500", "1500", "2500", "5000"]; // less than 10,000
-
-        await expectRevert(
-          lottery.startLottery(endTime, _priceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Rewards must equal 10000"
-        );
-
-        _rewardsBreakdown = ["10000", "300", "500", "1500", "2500", "5000"]; // less than 10,000
-
-        await expectRevert(
-          lottery.startLottery(endTime, _priceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Rewards must equal 10000"
-        );
-
-        // Set it back to previous value
-        _rewardsBreakdown = currentRewardBreakdown;
-      });
-
-      it("Operator cannot close lottery that is not started", async () => {
-        await expectRevert(lottery.closeLottery("2", { from: operator }), "Lottery not open");
-      });
-
-      it("Operator starts lottery", async () => {
-        endTime = new BN(await time.latest()).add(_lengthLottery);
-
-        result = await lottery.startLottery(
-          endTime,
-          _priceTicketInCake,
-          _discountDivisor,
-          _rewardsBreakdown,
-          _treasuryFee,
-          { from: operator }
-        );
-
-        expectEvent(result, "LotteryOpen", {
-          lotteryId: "2",
-          startTime: (await time.latest()).toString(),
-          endTime: endTime.toString(),
-          priceTicketInCake: _priceTicketInCake.toString(),
-          firstTicketId: "111",
-          injectedAmount: parseEther("3619.0809").toString(),
-        });
-      });
-
-      it("Operator cannot close lottery", async () => {
-        await expectRevert(lottery.closeLottery("2", { from: operator }), "Lottery not over");
-      });
-
-      it("Operator cannot draw numbers", async () => {
-        await expectRevert(
-          lottery.drawFinalNumberAndMakeLotteryClaimable("2", true, { from: operator }),
-          "Lottery not close"
-        );
-      });
-
-      it("Operator cannot start a second lottery", async () => {
-        await expectRevert(
-          lottery.startLottery(_lengthLottery, _priceTicketInCake, _discountDivisor, _rewardsBreakdown, _treasuryFee, {
-            from: operator,
-          }),
-          "Not time to start lottery"
-        );
-      });
-
-      it("User cannot buy 0 ticket", async () => {
-        await expectRevert(lottery.buyTickets("2", [], _rewardsAddress, { from: bob }), "No ticket specified");
-      });
-
-      it("User cannot buy more than the limit of tickets per transaction", async () => {
-        const _maxNumberTickets = "5"; // 6 --> rejected // 5 --> accepted
-        await lottery.setMaxNumberTicketsPerBuy(_maxNumberTickets, { from: alice });
-
-        await expectRevert(
-          lottery.buyTickets("2", ["1999999", "1999998", "1999999", "1999999", "1999998", "1999999"], _rewardsAddress, { from: bob }),
-          "Too many tickets"
-        );
-
-        // Sets limit at 100 tickets
-        await lottery.setMaxNumberTicketsPerBuy("100", { from: alice });
-      });
-
-      it("User cannot buy tickets if one of the numbers is outside of range", async () => {
-        await expectRevert(
-          lottery.buyTickets("2", ["1999999", "2199998", "1999999", "1999999", "1999998", "1999999"], _rewardsAddress, { from: bob }),
-          "Outside range"
-        );
-
-        await expectRevert(
-          lottery.buyTickets("2", ["1999999", "1929998", "1999999", "1999999", "1999998", "59999"], _rewardsAddress, { from: bob }),
-          "Outside range"
-        );
-      });
-
-      it("Bob buys 2 tickets", async () => {
-        await lottery.buyTickets("2", ["1999999", "1569955"], _rewardsAddress, { from: bob });
-      });
-
-      it("User cannot claim tickets if same length for array arguments", async () => {
-        await expectRevert(lottery.claimTickets("1", ["1999999", "1569999"], ["1"], { from: bob }), "Not same length");
-      });
-
-      it("User cannot claim tickets if not over", async () => {
-        await expectRevert(
-          lottery.claimTickets("2", ["1999995", "1569995"], ["1", "1"], { from: bob }),
-          "Lottery not claimable"
-        );
-      });
-
-      it("Cannot buy ticket when it is end time", async () => {
-        // Time travel
-        await time.increaseTo(endTime);
-        await expectRevert(lottery.buyTickets("2", ["1269956", "1269955"], _rewardsAddress, { from: bob }), "Lottery is over");
-      });
-
-      it("Cannot change generator number", async () => {
-        await expectRevert(
-          lottery.changeRandomGenerator(randomNumberGenerator.address, { from: alice }),
-          "Lottery not in claimable"
-        );
-      });
-
-      it("Operator cannot draw numbers if the lotteryId isn't updated in RandomGenerator", async () => {
-        await randomNumberGenerator.setNextRandomResult("199999994", { from: alice });
-
-        result = await lottery.closeLottery("2", { from: operator });
-        expectEvent(result, "LotteryClose", { lotteryId: "2", firstTicketIdNextLottery: "113" });
-
-        await expectRevert(
-          lottery.drawFinalNumberAndMakeLotteryClaimable("2", false, { from: operator }),
-          "Numbers not drawn"
-        );
-
-        await randomNumberGenerator.changeLatestLotteryId({ from: alice });
-
-        // 0 winning ticket, funds are not rolled over
-        result = await lottery.drawFinalNumberAndMakeLotteryClaimable("2", false, { from: operator });
-
-        expectEvent(result, "LotteryNumberDrawn", {
-          lotteryId: "2",
-          finalNumber: "1999994",
-          countWinningTickets: "0",
-        });
-
-        expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
-          from: lottery.address,
-          to: treasury,
-          value: parseEther("3620.0804").toString(),
-        });
-      });
-
-      it("Cannot claim for wrong lottery (too high)", async () => {
-        await expectRevert(lottery.claimTickets("1", ["111"], ["5"], { from: david }), "TicketId too high");
-      });
-
-      it("Cannot claim for wrong lottery (too low)", async () => {
-        await expectRevert(lottery.claimTickets("2", ["110"], ["5"], { from: david }), "TicketId too low");
-      });
-
-      it("Cannot claim for wrong lottery (too high)", async () => {
-        await expectRevert(lottery.claimTickets("2", ["113"], ["5"], { from: david }), "TicketId too high");
-      });
-
-      it("Lottery starts, close, and numbers get drawn without a participant", async () => {
-        endTime = new BN(await time.latest()).add(_lengthLottery);
-
-        result = await lottery.startLottery(
-          endTime,
-          _priceTicketInCake,
-          _discountDivisor,
-          _rewardsBreakdown,
-          _treasuryFee,
-          { from: operator }
-        );
-
-        expectEvent(result, "LotteryOpen", {
-          lotteryId: "3",
-          startTime: (await time.latest()).toString(),
-          endTime: endTime.toString(),
-          priceTicketInCake: _priceTicketInCake.toString(),
-          firstTicketId: "113",
-          injectedAmount: "0",
-        });
-
-        await time.increaseTo(endTime);
-        result = await lottery.closeLottery("3", { from: operator });
-        expectEvent(result, "LotteryClose", { lotteryId: "3", firstTicketIdNextLottery: "113" });
-
-        await randomNumberGenerator.changeLatestLotteryId({ from: alice });
-
-        // 0 winner
-        result = await lottery.drawFinalNumberAndMakeLotteryClaimable("3", true, { from: operator });
-
-        expectEvent(result, "LotteryNumberDrawn", {
-          lotteryId: "3",
-          finalNumber: "1999994",
-          countWinningTickets: "0",
-        });
-
-        await expectRevert(lottery.claimTickets("3", ["113"], ["1"], { from: david }), "TicketId too high");
-      });
-
-      it("Change the random generator (to existing one)", async () => {
-        result = await lottery.changeRandomGenerator(randomNumberGenerator.address, { from: alice });
-        expectEvent(result, "NewRandomGenerator", { randomGenerator: randomNumberGenerator.address });
-      });
-
-      it("Lottery starts with only 4 brackets with a prize, one user buys tickets", async () => {
-        await randomNumberGenerator.setNextRandomResult("188888888", { from: alice });
-
-        endTime = new BN(await time.latest()).add(_lengthLottery);
-
-        const newRewardsBreakdown = ["1000", "0", "1500", "2500", "0", "5000"];
-
-        result = await lottery.startLottery(
-          endTime,
-          _priceTicketInCake,
-          _discountDivisor,
-          newRewardsBreakdown,
-          _treasuryFee,
-          { from: operator }
-        );
-
-        expectEvent(result, "LotteryOpen", {
-          lotteryId: "4",
-          startTime: (await time.latest()).toString(),
-          endTime: endTime.toString(),
-          priceTicketInCake: _priceTicketInCake.toString(),
-          firstTicketId: "113",
-          injectedAmount: "0",
-        });
-
-        await lottery.injectFunds("4", parseEther("1000"), { from: injector });
-
-        const _ticketsBought = ["1111118", "1222288", "1333888", "1448888", "1588888", "1888888"];
-
-        // Total cost: 2.9925 CAKE
-        result = await lottery.buyTickets("4", _ticketsBought, _rewardsAddress, { from: carol });
-
-        expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
-          from: carol,
-          to: lottery.address,
-          value: parseEther("2.9925").toString(),
-        });
-      });
-
-      it("Lottery close and numbers get drawn with only 4 brackets with a prize", async () => {
-        await time.increaseTo(endTime);
-        result = await lottery.closeLottery("4", { from: operator });
-        expectEvent(result, "LotteryClose", { lotteryId: "4", firstTicketIdNextLottery: "119" });
-
-        await randomNumberGenerator.changeLatestLotteryId({ from: alice });
-
-        // 6 winning tickets
-        result = await lottery.drawFinalNumberAndMakeLotteryClaimable("4", true, { from: operator });
-
-        // 20% * 1002.9925 = 200.5985 CAKE
-        expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
-          from: lottery.address,
-          to: treasury,
-          value: parseEther("200.5985").toString(),
-        });
-
-        expectEvent(result, "LotteryNumberDrawn", {
-          lotteryId: "4",
-          finalNumber: "1888888",
-          countWinningTickets: "6",
-        });
-      });
-
-      it("User claims first ticket", async () => {
-        // 802.394 CAKE to collect
-        // Rewards: ["1000", "0", "1500", "2500", "0", "5000"];
-        // 2 tickets with 1 matching --> 10% * 802.394 --> 80.2394 total --> 40.1197/ticket
-        // 1 ticket with 3 matching --> 15% * 802.394 --> 120.3591 total --> 120.3591/ticket
-        // 2 tickets with 4 matching --> 25% * 802.394 --> 200.5985 total --> 100.29925/ticket
-        // 1 ticket with 6 matching --> 50% * 802.394 --> 401.197 total --> 401.197/ticket
-
-        result = await lottery.claimTickets("4", ["113"], ["0"], { from: carol });
-
-        expectEvent(result, "TicketsClaim", {
-          claimer: carol,
-          amount: parseEther("40.1197").toString(),
-          lotteryId: "4",
-          numberTickets: "1",
-        });
-      });
-
-      it("User cannot claim ticket in a bracket if equals to 0", async () => {
-        await expectRevert(lottery.claimTickets("4", ["114"], ["1"], { from: carol }), "No prize for this bracket");
-        result = await lottery.claimTickets("4", ["114"], ["0"], { from: carol });
-
-        expectEvent(result, "TicketsClaim", {
-          claimer: carol,
-          amount: parseEther("40.1197").toString(),
-          lotteryId: "4",
-          numberTickets: "1",
-        });
-      });
-
-      it("User claims 2 more tickets", async () => {
-        result = await lottery.claimTickets("4", ["115", "118"], ["2", "5"], { from: carol });
-
-        expectEvent(result, "TicketsClaim", {
-          claimer: carol,
-          amount: parseEther("521.5561").toString(), // 120.3591 + 401.197 = 521.5561
-          lotteryId: "4",
-          numberTickets: "2",
-        });
-      });
-
-      it("User cannot claim ticket in a lower bracket if bracket above is not 0", async () => {
-        await expectRevert(lottery.claimTickets("4", ["116"], ["2"], { from: carol }), "Bracket must be higher");
-        result = await lottery.claimTickets("4", ["116", "117"], ["3", "3"], { from: carol });
-
-        expectEvent(result, "TicketsClaim", {
-          claimer: carol,
-          amount: parseEther("200.5985").toString(),
-          lotteryId: "4",
-          numberTickets: "2",
-        });
       });
     });
 
@@ -2110,7 +1624,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
         await expectRevert(
           lottery.recoverWrongTokens(mockCake.address, parseEther("1"), { from: alice }),
-          "Cannot be CAKE token"
+          "Cannot be BUSD token"
         );
       });
 
@@ -2118,10 +1632,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         await expectRevert(
           lottery.startLottery(
             _lengthLottery,
-            _priceTicketInCake,
-            _discountDivisor,
-            _rewardsBreakdown,
-            _treasuryFee,
+            _priceTicketInBusd,
             _minTicketsToSell,
             _maxTicketsToSell,
             _prizes,
@@ -2132,7 +1643,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         );
 
         await expectRevert(lottery.closeLottery("2", { from: alice }), "Not operator");
-        await expectRevert(lottery.drawFinalNumberAndMakeLotteryClaimable("2", false, { from: alice }), "Not operator");
+        await expectRevert(lottery.drawAndMakeLotteryClaimable("2", { from: alice }), "Not operator");
       });
 
       it("Only owner/injector can call owner functions", async () => {
@@ -2181,26 +1692,50 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         );
       });
     });
-    */
 });
-/*
-describe("PancakeSwapLottery contract", function () {
-  it("Deployment should set token address and randonnumbergenerator", async function () {
-
-    const PancakeSwapLottery = await ethers.getContractFactory("PancakeSwapLottery");
-    const tusdAddress = "0xE35282d31014C1534EbB4689D7596AaF2CEB8f3D";
-    const rngAddress = "0x5122fC7F0013863f8E36aba7D5e8270d2BEde2dd";
-    const hardhatPancakeSwapLottery = await PancakeSwapLottery.deploy(tusdAddress, rngAddress);
-
-    const cakeToken = await hardhatPancakeSwapLottery.cakeToken();
-    const randomGenerator = await hardhatPancakeSwapLottery.randomGenerator();
-    expect(cakeToken).to.equal(tusdAddress);
-    expect(randomGenerator).to.equal(rngAddress);
-  });
-  */
 });
 
 /*
+  
+    it("test tickets", async () => {
+      let tickets = await lottery._winners(0)
+      console.log(tickets[0].toString());
+      console.log(tickets[1].toString());
+      console.log(tickets[2].toString());
+      console.log(tickets[3].toString());
+      console.log(tickets[4].toString());
+      console.log("--------------------------------------------------------------------------------------------------");
+      let ticket2 = await lottery._winners(1)
+      console.log(ticket2[0].toString());
+      console.log(ticket2[1].toString());
+      console.log(ticket2[2].toString());
+      console.log(ticket2[3].toString());
+      console.log(tickets[4].toString());
+      console.log("--------------------------------------------------------------------------------------------------");
+      let ticket3 = await lottery._winners(2)
+      console.log(ticket3[0].toString());
+      console.log(ticket3[1].toString());
+      console.log(ticket3[2].toString());
+      console.log(ticket3[3].toString());
+      console.log(tickets[4].toString());
+
+      let rand = await lottery.getRamd("3");
+      console.log(rand[0].toString());
+      console.log(rand[1].toString());
+      console.log(rand[2].toString());
+      console.log("--------------------------------------------------------------------------------------------------");
+
+      let arr = await lottery.shuffle("1", rand[0].toString())
+      // console.log(arr.length);
+      for (var i = 0; i < arr.length; i++) {
+        console.log(arr[i].toString());
+      }
+      console.log("--------------------------------------------------------------------------------------------------");
+      arr2 = await lottery.shuffle("1", rand[1].toString())
+      for (var j = 0; j < arr2.length; j++) {
+        console.log(arr2[j].toString());
+      }
+    });
   it("test tickets", async () => {      
     let tickets = await lottery._winners(0)
     console.log(tickets[0].toString());

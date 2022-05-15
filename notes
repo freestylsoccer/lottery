@@ -8,3 +8,89 @@ pasos lottery
   generar el número aleatorio
   expandir el número aleatorio, pasando (numero_aleatorio, numero_premios)
   identificar el número de tickets vendidos
+
+
+/* Smart Contract Orginal */
+Contract: Lottery V2
+    LOTTERY #1 - CUSTOM RANDOMNESS
+      ✔ Admin sets up treasury/operator address (71ms)
+      ✔ Users mint and approve CAKE to be used in the lottery (301ms)
+        --> Cost to start the lottery: NaN (USD: NaN)
+      ✔ Operator starts lottery (70ms)
+        --> Cost to buy the first 100 tickets: 16273360
+      ✔ Bob buys 100 tickets (2330ms)
+        --> Cost to buy a stand-alone ticket: 243039
+      ✔ Carol buys 1 ticket (39ms)
+        --> Cost to buy 10 tickets: 1497353
+      ✔ David buys 10 tickets (129ms)
+        --> Cost to do injection: NaN (USD: NaN)
+      ✔ Owner does 10k CAKE injection
+        --> Cost to buy the first 100 tickets: 7503860
+      ✔ Bob buys 100 tickets (1177ms)
+
+/* Smart Contract Orginal 
+removing
+  _numberTicketsPerLotteryId
+  countWinnersPerBracket
+  cakePerBracket
+  rewardsBreakdown
+*/
+Contract: Lottery V2
+    LOTTERY #1 - CUSTOM RANDOMNESS
+      ✔ Admin sets up treasury/operator address (70ms)
+      ✔ Users mint and approve CAKE to be used in the lottery (264ms)
+        --> Cost to start the lottery: NaN (USD: NaN)
+      ✔ Operator starts lottery (45ms)
+        --> Cost to buy the first 100 tickets: 4718560
+      ✔ Bob buys 100 tickets (763ms)
+        --> Cost to buy a stand-alone ticket: 141981
+      ✔ Carol buys 1 ticket (74ms)
+        --> Cost to buy 10 tickets: 555173
+      ✔ David buys 10 tickets (85ms)
+        --> Cost to do injection: NaN (USD: NaN)
+      ✔ Owner does 10k CAKE injection
+        --> Cost to buy the first 100 tickets: 4670060
+      ✔ Bob buys 100 tickets (535ms)
+
+/* Smart Contract Orginal 
+deployed first test on bsc testnet
+*/
+Contract: Lottery V2
+    LOTTERY #1 - CUSTOM RANDOMNESS
+      ✔ Admin sets up treasury/operator address (86ms)
+      ✔ Users mint and approve CAKE to be used in the lottery (375ms)
+        --> Cost to start the lottery: NaN (USD: NaN)
+      ✔ Operator starts lottery (104ms)
+        --> Cost to buy the first 100 tickets: 12008855
+      ✔ Bob buys 100 tickets (6276ms)
+        --> Cost to buy a stand-alone ticket: 331493
+      ✔ Carol buys 1 ticket (127ms)
+        --> Cost to buy 10 tickets: 1834021
+      ✔ David buys 10 tickets (940ms)
+        --> Cost to do injection: NaN (USD: NaN)
+      ✔ Owner does 1M CAKE injection
+        --> Cost to buy the first 100 tickets: 22198378
+      ✔ Erin buys 100 tickets (14740ms)
+        --> Cost to close lottery: NaN (USD: NaN)
+      ✔ Operator closes lottery (47ms)
+
+/* Smart Contract Orginal 
+map to validate if already exist
+*/
+Contract: Lottery V2
+    LOTTERY #1 - CUSTOM RANDOMNESS
+      ✔ Admin sets up treasury/operator address (75ms)
+      ✔ Users mint and approve CAKE to be used in the lottery (227ms)
+        --> Cost to start the lottery: NaN (USD: NaN)
+      ✔ Operator starts lottery (68ms)
+        --> Cost to buy the first 100 tickets: 9433586
+      ✔ Bob buys 100 tickets (2304ms)
+        --> Cost to buy a stand-alone ticket: 231307
+      ✔ Carol buys 1 ticket (39ms)
+        --> Cost to buy 10 tickets: 1062155
+      ✔ David buys 10 tickets (124ms)
+        --> Cost to do injection: NaN (USD: NaN)
+      ✔ Owner does 1M CAKE injection (45ms)
+        --> Cost to buy the first 100 tickets: 9370774
+      ✔ Erin buys 100 tickets (1123ms)
+      ✔ Carol buys 2 tickets revert already sold (122ms)
