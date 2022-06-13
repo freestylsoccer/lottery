@@ -454,7 +454,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
     });
     
     it("user has referral rewards amount to claim (true)", async () => {
-      console.log(await lottery.hasReferralRewardsToClaim("1", { from: injector }));
+      console.log(await lottery.hasReferralRewardsToClaim("1", injector, { from: alice }));
     });
 
     it("Claim referral rewards", async () => {
@@ -470,7 +470,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
     });
 
     it("user has referral rewards amount to claim (false)", async () => {
-      console.log(await lottery.hasReferralRewardsToClaim("1", { from: injector }));
+      console.log(await lottery.hasReferralRewardsToClaim("1", injector, { from: alice }));
     });
 
     it("Carol claims 1st place", async () => {
@@ -1586,7 +1586,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       });
 
       it("get funds to withdraw in a unrealized lottery (true)", async () => {
-        console.log(await lottery.hasAmountToWithdraw("5", { from: carol }));
+        console.log(await lottery.hasAmountToWithdraw("5", carol, { from: david }));
       });
 
       it("Withdraw funds in a unrealized lottery", async () => {
@@ -1600,11 +1600,232 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       });
 
       it("get funds to withdraw after witdraw in a unrealized lottery (false)", async () => {
-        console.log(await lottery.hasAmountToWithdraw("5", { from: carol }));
+        console.log(await lottery.hasAmountToWithdraw("5", carol, { from: david }));
       });
 
       it("Claim rewards when lottery unrealized", async () => {
         await expectRevert(lottery.distributeReferralRewards("5", { from: injector }), "Lottery not claimable");
+      });
+
+      it("Operator starts lottery", async () => {
+        endTime = new BN(await time.latest()).add(_lengthLottery);
+        let _priceTicketInBusd = parseEther("5");
+        let _minTicketsToSell = "120";
+        let _maxTicketsToSell = "121";
+        let _prizes = [
+          parseEther("50"),
+          parseEther("50"),
+          parseEther("50"),
+          parseEther("50"),
+          parseEther("50"),
+          parseEther("50"),
+          parseEther("50"),
+          parseEther("50"),
+          parseEther("50"),
+          parseEther("50")
+        ];
+        let _referralReward = "1000";
+  
+        result = await lottery.startLottery(
+          endTime,
+          _priceTicketInBusd,
+          _minTicketsToSell,
+          _maxTicketsToSell,
+          _prizes,
+          _referralReward,
+          { from: operator }
+        );
+  
+        expectEvent(result, "LotteryOpen", {
+          lotteryId: "6",
+          startTime: (await time.latest()).toString(),
+          endTime: endTime.toString(),
+          priceTicketInBusd: _priceTicketInBusd.toString(),
+          firstTicketId: "445",
+          injectedAmount: "0",
+        });
+  
+        console.info(
+          `        --> Cost to start the lottery: ${result.receipt.gasUsed}`
+        );
+      });
+
+      it("buy all 120 tickets", async () => {
+        let _ticketsBought2 = [
+          "1000000",
+          "1234562",
+          "1234563",
+          "1234564",
+          "1234565",
+          "1234566",
+          "1234567",
+          "1234568",
+          "1234569",
+          "1234570",
+          "1334571",
+          "1334572",
+          "1334573",
+          "1334574",
+          "1334575",
+          "1334576",
+          "1334577",
+          "1334578",
+          "1334579",
+          "1334580",
+          "1434581",
+          "1434582",
+          "1434583",
+          "1434584",
+          "1434585"
+        ];
+  
+        result = await lottery.buyTickets("6", _ticketsBought2, _rewardsAddress, { from: carol });
+        expectEvent(result, "TicketsPurchase", { buyer: carol, lotteryId: "6", numberTickets: "25" });
+
+        _ticketsBought2 = [
+          "1434586",
+          "1434587",
+          "1434588",
+          "1434589",
+          "1534590",
+          "1534591",
+          "1534592",
+          "1534593",
+          "1534594",
+          "1534595",
+          "1534596",
+          "1534597",
+          "1534598",
+          "1534599",
+          "1634600",
+          "1634601",
+          "1634602",
+          "1634603",
+          "1634604",
+          "1634605",
+          "1634606",
+          "1634607",
+          "1634608",
+          "1634609",
+          "1634610"
+        ];
+  
+        result = await lottery.buyTickets("6", _ticketsBought2, _rewardsAddress, { from: bob });
+        expectEvent(result, "TicketsPurchase", { buyer: bob, lotteryId: "6", numberTickets: "25" });
+
+        _ticketsBought2 = [
+          "1634611",
+          "1634612",
+          "1634613",
+          "1634614",
+          "1634615",
+          "1634616",
+          "1634617",
+          "1634618",
+          "1634619",
+          "1634620",
+          "1634621",
+          "1634622",
+          "1634623",
+          "1634624",
+          "1634625",
+          "1634626",
+          "1634627",
+          "1634628",
+          "1634629",
+          "1634630",
+          "1634631",
+          "1634632",
+          "1634633",
+          "1634634",
+          "1634635"
+        ];
+  
+        result = await lottery.buyTickets("6", _ticketsBought2, _rewardsAddress, { from: david });
+        expectEvent(result, "TicketsPurchase", { buyer: david, lotteryId: "6", numberTickets: "25" });
+
+        _ticketsBought2 = [
+          "1634636",
+          "1634637",
+          "1634638",
+          "1634639",
+          "1634640",
+          "1634641",
+          "1634642",
+          "1634643",
+          "1634644",
+          "1634645",
+          "1634646",
+          "1634647",
+          "1634648",
+          "1634649",
+          "1634650",
+          "1634651",
+          "1634652",
+          "1634653",
+          "1634654",
+          "1634655",
+          "1634656",
+          "1634657",
+          "1634658",
+          "1634659",
+          "1634660",
+        ];
+  
+        result = await lottery.buyTickets("6", _ticketsBought2, _rewardsAddress, { from: erin });
+        expectEvent(result, "TicketsPurchase", { buyer: erin, lotteryId: "6", numberTickets: "25" });
+
+        _ticketsBought2 = [
+          "1703000",
+          "1733562",
+          "1733563",
+          "1733564",
+          "1733565",
+          "1733566",
+          "1733567",
+          "1733568",
+          "1733569",
+          "1733570",
+          "1733571",
+          "1733572",
+          "1733573",
+          "1733574",
+          "1733575",
+          "1733576",
+          "1733577",
+          "1733578",
+          "1733579",
+          "1733580",
+        ];
+  
+        result = await lottery.buyTickets("6", _ticketsBought2, _rewardsAddress, { from: bob });
+        expectEvent(result, "TicketsPurchase", { buyer: bob, lotteryId: "6", numberTickets: "20" });
+      });
+
+      it("Operator closes lottery", async () => {
+        await randomNumberGenerator.setNextRandomResult("199999999", { from: alice });
+        await randomNumberGenerator.changeLatestLotteryId({ from: alice });
+  
+        // Time travel
+        await time.increaseTo(endTime);
+        result = await lottery.closeLottery("6", { from: operator });
+        expectEvent(result, "LotteryClose", { lotteryId: "6", firstTicketIdNextLottery: "565" });
+  
+        console.info(
+          `        --> Cost to close lottery: ${result.receipt.gasUsed}`
+        );
+      });
+
+      it("Numbers are drawn (9/9/9/9/9/9)", async () => {
+        // 3 winning tickets
+        resutl = await lottery.drawAndMakeLotteryClaimable("6", { from: operator });
+        let status = await lottery.viewLottery("6");
+        // 3 claimable
+        assert.equal(status[0].toString(), "3");
+        assert.equal(status[7].toString(), "1999999");
+        console.info(
+          `        --> Cost to draw numbers (w/o ChainLink): ${result.receipt.gasUsed}`
+        );
       });
     });
 

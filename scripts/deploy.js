@@ -42,8 +42,8 @@ async function main() {
     deployer.address,
     deployer.address,
   );
-  console.log("wait for transaction");
-  await new Promise(r => setTimeout(r, 30000));
+  // console.log("wait for transaction");
+  // await new Promise(r => setTimeout(r, 30000));
 
   console.log("PancakeSwapLottery injectorAddress");
   console.log(await lottery.injectorAddress());

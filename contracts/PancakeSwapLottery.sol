@@ -36,9 +36,9 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
     uint256 public pendingInjectionNextLottery;
 
     // uint256 public constant MIN_LENGTH_LOTTERY = 4 hours - 5 minutes; // 4 hours
-    uint256 public constant MIN_LENGTH_LOTTERY = 10 minutes; // 4 hours
-    uint256 public constant MAX_LENGTH_LOTTERY = 4 days + 5 minutes; // 4 days
-    uint256 public constant MAX_REFERRAL_FEE = 3000; // 30%
+    uint256 public constant MIN_LENGTH_LOTTERY = 4 hours - 5 minutes; // 4 hours
+    uint256 public constant MAX_LENGTH_LOTTERY = 100 days + 5 minutes; // 100 days
+    uint256 public constant MAX_REFERRAL_FEE = 5000; // 50%
 
     IERC20 public busdToken;
     IRandomNumberGenerator public randomGenerator;
@@ -803,53 +803,58 @@ contract PancakeSwapLottery is ReentrancyGuard, IPancakeSwapLottery, Ownable {
     /**
      * @notice Validate if user has pending found to withdraw
      * @param _lotteryId: lottery id
+     * @param user: user
      * @dev Callable by users only, not contract!
      * @dev Used by frontend
      */
     function hasAmountToWithdraw(
-        uint256 _lotteryId
-    ) public view returns(bool) {
+        uint256 _lotteryId,
+        address user
+    ) public view returns(uint256, uint256) {
         require(_lotteries[_lotteryId].status == Status.Unrealized, "Lottery status != unrealized");
 
         uint256 amountToReturn = 0;
-        uint256 length = _userTicketIdsPerLotteryId[msg.sender][_lotteryId].length;
-
+        uint256 length = _userTicketIdsPerLotteryId[user][_lotteryId].length;
+        uint256 tickets = 0;
         for (uint256 i = 0; i < length; i++) {
             uint256 amount = 0;
-            uint256 ticketId = _userTicketIdsPerLotteryId[msg.sender][_lotteryId][i];
+            uint256 ticketId = _userTicketIdsPerLotteryId[user][_lotteryId][i];
 
-            if (_tickets[ticketId].owner == msg.sender && _tickets[ticketId].status == true) {
+            if (_tickets[ticketId].owner == user && _tickets[ticketId].status == true) {
                 amount = _lotteries[_lotteryId].priceTicketInBusd;
+                tickets += 1;
             }
             // Increment the amount to return
             amountToReturn += amount;
         }
 
-        return (amountToReturn > 0);
+        return (tickets, amountToReturn);
     }
 
     /**
      * @notice Return amount to user when lottery is not realized
      * @param _lotteryId: lottery id
+     * @param user: user
      * @dev Callable by users only, not contract!
      */
     function hasReferralRewardsToClaim(
-        uint256 _lotteryId
-    ) public view returns(bool) {
+        uint256 _lotteryId,
+        address user
+    ) public view returns(uint256) {
         require(_lotteries[_lotteryId].status == Status.Claimable, "Lottery not claimable");
 
         uint256 referralRewardToTransfer = 0;
 
-        uint256 records = _rewards[msg.sender][_lotteryId].length;
+        uint256 records = _rewards[user][_lotteryId].length;
 
         for (uint256 i = 0; i < records; i++) {
             uint256 reward = 0;
-            if (_rewards[msg.sender][_lotteryId][i].distributed == false) {
-                reward = _rewards[msg.sender][_lotteryId][i].reward;
+            if (_rewards[user][_lotteryId][i].distributed == false) {
+                reward = _rewards[user][_lotteryId][i].reward;
             }
             referralRewardToTransfer += reward;
         }
 
-        return (referralRewardToTransfer > 0);
+        return referralRewardToTransfer;
     }
 }

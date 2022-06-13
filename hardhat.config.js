@@ -31,7 +31,7 @@ module.exports = {
     hardhat: {
     },
     testnet: {
-      url: "https://data-seed-prebsc-1-s1.binance.org:8545",
+      url: "https://data-seed-prebsc-2-s1.binance.org:8545/",
       chainId: 97,
       gasPrice: 20000000000,
       accounts: ['ee8e01fb72e9995a678b6271168ac6c8a08be14506791cc9684af7af88c937a9'],
