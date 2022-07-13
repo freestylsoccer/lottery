@@ -6,12 +6,12 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/dev/VRFConsumerBase.sol";
 import "./interfaces/IRandomNumberGenerator.sol";
-import "./interfaces/IPancakeSwapLottery.sol";
+import "./interfaces/IWincketLottery.sol";
 
 contract RandomNumberGenerator is VRFConsumerBase, IRandomNumberGenerator, Ownable {
     using SafeERC20 for IERC20;
 
-    address public pancakeSwapLottery;
+    address public wincketLottery;
     bytes32 public keyHash;
     bytes32 public latestRequestId;
     uint32 public randomResult;
@@ -32,10 +32,10 @@ contract RandomNumberGenerator is VRFConsumerBase, IRandomNumberGenerator, Ownab
 
     /**
      * @notice Request randomness from a user-provided seed
-     * @param _seed: seed provided by the PancakeSwap lottery
+     * @param _seed: seed provided by the Wincket lottery
      */
     function getRandomNumber(uint256 _seed) external override {
-        require(msg.sender == pancakeSwapLottery, "Only PancakeSwapLottery");
+        require(msg.sender == wincketLottery, "Only Wincket Lottery");
         require(keyHash != bytes32(0), "Must have valid key hash");
         require(LINK.balanceOf(address(this)) >= fee, "Not enough LINK tokens");
 
@@ -59,11 +59,11 @@ contract RandomNumberGenerator is VRFConsumerBase, IRandomNumberGenerator, Ownab
     }
 
     /**
-     * @notice Set the address for the PancakeSwapLottery
-     * @param _pancakeSwapLottery: address of the PancakeSwap lottery
+     * @notice Set the address for the Wincket Lottery
+     * @param _wincketLottery: address of the Wincket Lottery
      */
-    function setLotteryAddress(address _pancakeSwapLottery) external onlyOwner {
-        pancakeSwapLottery = _pancakeSwapLottery;
+    function setLotteryAddress(address _wincketLottery) external onlyOwner {
+        wincketLottery = _wincketLottery;
     }
 
     /**
@@ -96,9 +96,12 @@ contract RandomNumberGenerator is VRFConsumerBase, IRandomNumberGenerator, Ownab
     function fulfillRandomness(bytes32 requestId, uint256 randomness) internal override {
         require(latestRequestId == requestId, "Wrong requestId");
         randomResult = uint32(1000000 + (randomness % 1000000));
-        latestLotteryId = IPancakeSwapLottery(pancakeSwapLottery).viewCurrentLotteryId();
+        latestLotteryId = IWincketLottery(wincketLottery).viewCurrentLotteryId();
     }
 
+    /**
+     * @notice Getting multiple random numbers
+     */
     function expand(uint256 randomValue, uint256 n) external pure override returns (uint256[] memory expandedValues) {
         expandedValues = new uint256[](n);
         for (uint256 i = 0; i < n; i++) {

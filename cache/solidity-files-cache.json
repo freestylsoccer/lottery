@@ -1,47 +1,9 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "/home/ubuntu/projects/lottery/contracts/interfaces/IPancakeSwapLottery.sol": {
-      "lastModificationDate": 1651602120552,
-      "contentHash": "10695376fe169a833f210ac344a6a80d",
-      "sourceName": "contracts/interfaces/IPancakeSwapLottery.sol",
-      "solcConfig": {
-        "version": "0.8.4",
-        "settings": {
-          "metadata": {
-            "bytecodeHash": "none"
-          },
-          "optimizer": {
-            "enabled": true,
-            "runs": 800
-          },
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        ">=0.6.0"
-      ],
-      "artifacts": [
-        "IPancakeSwapLottery"
-      ]
-    },
     "/home/ubuntu/projects/lottery/contracts/utils/MockRandomNumberGenerator.sol": {
-      "lastModificationDate": 1651261081606,
-      "contentHash": "b7011b3730eb0be8720eff89ed4dec71",
+      "lastModificationDate": 1657148764068,
+      "contentHash": "ddafa5b8d642e3a9115bafe92d46d022",
       "sourceName": "contracts/utils/MockRandomNumberGenerator.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -72,7 +34,7 @@
       "imports": [
         "@openzeppelin/contracts/access/Ownable.sol",
         "../interfaces/IRandomNumberGenerator.sol",
-        "../interfaces/IPancakeSwapLottery.sol"
+        "../interfaces/IWincketLottery.sol"
       ],
       "versionPragmas": [
         "^0.8.4"
@@ -122,8 +84,8 @@
       ]
     },
     "/home/ubuntu/projects/lottery/contracts/interfaces/IRandomNumberGenerator.sol": {
-      "lastModificationDate": 1651261037418,
-      "contentHash": "e2d3a0fb98b7fae3b0dae02dc6dfef91",
+      "lastModificationDate": 1657298666692,
+      "contentHash": "60d08bbfe7041960c7f53ce2e317903f",
       "sourceName": "contracts/interfaces/IRandomNumberGenerator.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -198,8 +160,8 @@
       ]
     },
     "/home/ubuntu/projects/lottery/contracts/RandomNumberGenerator.sol": {
-      "lastModificationDate": 1651261196607,
-      "contentHash": "2726097f90f869b5d3c1afb77bb8993b",
+      "lastModificationDate": 1657298670928,
+      "contentHash": "6d53427dfa0997dde2b465c832fcb062",
       "sourceName": "contracts/RandomNumberGenerator.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -233,7 +195,7 @@
         "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
         "@chainlink/contracts/src/v0.8/dev/VRFConsumerBase.sol",
         "./interfaces/IRandomNumberGenerator.sol",
-        "./interfaces/IPancakeSwapLottery.sol"
+        "./interfaces/IWincketLottery.sol"
       ],
       "versionPragmas": [
         "^0.8.4"
@@ -558,52 +520,6 @@
         "ERC20"
       ]
     },
-    "/home/ubuntu/projects/lottery/contracts/PancakeSwapLottery.sol": {
-      "lastModificationDate": 1655130655114,
-      "contentHash": "d5735bc4a49ed793cfd4f84b4ff2fd52",
-      "sourceName": "contracts/PancakeSwapLottery.sol",
-      "solcConfig": {
-        "version": "0.8.4",
-        "settings": {
-          "metadata": {
-            "bytecodeHash": "none"
-          },
-          "optimizer": {
-            "enabled": true,
-            "runs": 800
-          },
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/access/Ownable.sol",
-        "@openzeppelin/contracts/security/ReentrancyGuard.sol",
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
-        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
-        "@openzeppelin/contracts/utils/math/SafeMath.sol",
-        "./interfaces/IRandomNumberGenerator.sol",
-        "./interfaces/IPancakeSwapLottery.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.4"
-      ],
-      "artifacts": [
-        "PancakeSwapLottery"
-      ]
-    },
     "/home/ubuntu/projects/lottery/node_modules/@openzeppelin/contracts/security/ReentrancyGuard.sol": {
       "lastModificationDate": 1650894847264,
       "contentHash": "92f9448b23a90ea3bb932ee55cc3ccce",
@@ -756,6 +672,89 @@
       ],
       "artifacts": [
         "Strings"
+      ]
+    },
+    "/home/ubuntu/projects/lottery/contracts/WincketLottery.sol": {
+      "lastModificationDate": 1657658338876,
+      "contentHash": "8320cd6460b298ca65e73426518a4d44",
+      "sourceName": "contracts/WincketLottery.sol",
+      "solcConfig": {
+        "version": "0.8.4",
+        "settings": {
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "optimizer": {
+            "enabled": true,
+            "runs": 800
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/access/Ownable.sol",
+        "@openzeppelin/contracts/security/ReentrancyGuard.sol",
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
+        "./interfaces/IRandomNumberGenerator.sol",
+        "./interfaces/IWincketLottery.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.4"
+      ],
+      "artifacts": [
+        "WincketLottery"
+      ]
+    },
+    "/home/ubuntu/projects/lottery/contracts/interfaces/IWincketLottery.sol": {
+      "lastModificationDate": 1657148584879,
+      "contentHash": "66e646aa583132ee8b532119c3946c7e",
+      "sourceName": "contracts/interfaces/IWincketLottery.sol",
+      "solcConfig": {
+        "version": "0.8.4",
+        "settings": {
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "optimizer": {
+            "enabled": true,
+            "runs": 800
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0"
+      ],
+      "artifacts": [
+        "IWincketLottery"
       ]
     }
   }

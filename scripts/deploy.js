@@ -8,7 +8,7 @@ async function main() {
 
   console.log("Account balance:", (await deployer.getBalance()).toString());
   
-  const PancakeSwapLottery = await ethers.getContractFactory("PancakeSwapLottery");
+  const PancakeSwapLottery = await ethers.getContractFactory("WincketLottery");
 
   let randomNumberGenerator;
   console.log("RandomNumberGenerator with VRF is deployed..");

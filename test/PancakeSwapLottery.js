@@ -6,7 +6,7 @@ const { BN, constants, expectEvent, expectRevert, time } = require("@openzeppeli
 
 const MockERC20 = artifacts.require("./utils/MockERC20.sol");
 const MockRandomNumberGenerator = artifacts.require("./utils/MockRandomNumberGenerator.sol");
-const PancakeSwapLottery = artifacts.require("./PancakeSwapLottery.sol");
+const PancakeSwapLottery = artifacts.require("./WincketLottery.sol");
 
 const PRICE_BNB = 400;
 
@@ -441,9 +441,14 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       await expectRevert(lottery.distributeReferralRewards("1", { from: injector }), "Lottery not claimable");
     });
 
+    it("test tickets", async () => {
+      result = await lottery.testT("1", { from: operator });
+      // console.log(result.toString());
+    });
+
     it("Numbers are drawn (9/9/9/9/9/9)", async () => {
       // 3 winning tickets
-      resutl = await lottery.drawAndMakeLotteryClaimable("1", { from: operator });
+      result = await lottery.drawAndMakeLotteryClaimable("1", { from: operator });
       let status = await lottery.viewLottery("1");
       // 3 claimable
       assert.equal(status[0].toString(), "3");
@@ -452,15 +457,21 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
         `        --> Cost to draw numbers (w/o ChainLink): ${result.receipt.gasUsed}`
       );
     });
+
+    it("test winners", async () => {
+      result = await lottery.getWinningTicketsPerLotteryId("1", { from: operator });
+      // console.log(result.toString());
+    });
     
     it("user has referral rewards amount to claim (true)", async () => {
-      console.log(await lottery.hasReferralRewardsToClaim("1", injector, { from: alice }));
+      result = await lottery.hasReferralRewardsToClaim("1", injector, { from: alice });
+      // console.log(result.toString())
     });
 
     it("Claim referral rewards", async () => {
       // reward amount = tickets * price * reward = 211 * 0.5 * 0.05 = 5.275
-      let resutl = await lottery.distributeReferralRewards("1", { from: injector });
-      expectEvent(resutl, "DistributeRewards", { claimer: injector, amount: parseEther("5.275").toString() });
+      let result = await lottery.distributeReferralRewards("1", { from: injector });
+      expectEvent(result, "DistributeRewards", { claimer: injector, amount: parseEther("5.275").toString() });
 
       console.info(
         `        --> Cost to claim referral rewards: ${result.receipt.gasUsed}`
@@ -470,36 +481,11 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
     });
 
     it("user has referral rewards amount to claim (false)", async () => {
-      console.log(await lottery.hasReferralRewardsToClaim("1", injector, { from: alice }));
+      result = await lottery.hasReferralRewardsToClaim("1", injector, { from: alice });
+      // console.log(result.toString());
     });
 
-    it("Carol claims 1st place", async () => {
-      // 100,000 CAKE 1st place
-      result = await lottery.claimTickets(
-        "1",
-        ["1101010"],
-        { from: carol }
-      );
-
-      expectEvent(result, "TicketsClaim", {
-        claimer: carol,
-        amount: parseEther("100000").toString(),
-        lotteryId: "1",
-        numberTickets: "1",
-      });
-
-      console.info(
-        `        --> Cost to claim 1 ticket: ${result.receipt.gasUsed}`
-      );
-
-      expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
-        from: lottery.address,
-        to: carol,
-        value: parseEther("100000").toString(),
-      });
-    });
-
-    it("Erin claims 2st place", async () => {
+    it("Erin claims 1st abd 2st place", async () => {
       // 80,000 CAKE 1st place
       const _ticketsBought = [
         "1703000",
@@ -611,7 +597,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
       expectEvent(result, "TicketsClaim", {
         claimer: erin,
-        amount: parseEther("80000").toString(),
+        amount: parseEther("150000").toString(),
         lotteryId: "1",
         numberTickets: "100",
       });
@@ -739,7 +725,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
       expectEvent(result, "TicketsClaim", {
         claimer: bob,
-        amount: parseEther("50000").toString(),
+        amount: parseEther("80000").toString(),
         lotteryId: "1",
         numberTickets: "100",
       });
@@ -1041,46 +1027,6 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           value: parseEther("3620.0804").toString(),
         });
       });
-      /*
-      it("test tickets", async () => {
-        let tickets = await lottery._winners(3)
-        console.log(tickets[0].toString());
-        console.log(tickets[1].toString());
-        console.log(tickets[2].toString());
-        console.log(tickets[3].toString());
-        console.log(tickets[4].toString());
-        console.log("--------------------------------------------------------------------------------------------------");
-        let ticket2 = await lottery._winners(4)
-        console.log(ticket2[0].toString());
-        console.log(ticket2[1].toString());
-        console.log(ticket2[2].toString());
-        console.log(ticket2[3].toString());
-        console.log(tickets[4].toString());
-        console.log("--------------------------------------------------------------------------------------------------");
-        let ticket3 = await lottery._winners(5)
-        console.log(ticket3[0].toString());
-        console.log(ticket3[1].toString());
-        console.log(ticket3[2].toString());
-        console.log(ticket3[3].toString());
-        console.log(tickets[4].toString());
-  
-        let rand = await lottery.getRamd("2");
-        console.log(rand[0].toString());
-        console.log(rand[1].toString());
-        console.log("--------------------------------------------------------------------------------------------------");
-  
-        let arr = await lottery.shuffle("2", rand[0].toString())
-        // console.log(arr.length);
-        for (var i = 0; i < arr.length; i++) {
-          console.log(arr[i].toString());
-        }
-        console.log("--------------------------------------------------------------------------------------------------");
-        arr2 = await lottery.shuffle("2", rand[1].toString())
-        for (var j = 0; j < arr2.length; j++) {
-          console.log(arr2[j].toString());
-        }
-      });
-      */
       
       it("David claim 2 winner tickets", async () => {
         // sin suerte david 
@@ -1586,7 +1532,8 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       });
 
       it("get funds to withdraw in a unrealized lottery (true)", async () => {
-        console.log(await lottery.hasAmountToWithdraw("5", carol, { from: david }));
+        result = await lottery.hasAmountToWithdraw("5", carol, { from: david });
+        // console.log(result.toString());
       });
 
       it("Withdraw funds in a unrealized lottery", async () => {
@@ -1600,7 +1547,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
       });
 
       it("get funds to withdraw after witdraw in a unrealized lottery (false)", async () => {
-        console.log(await lottery.hasAmountToWithdraw("5", carol, { from: david }));
+        result = await lottery.hasAmountToWithdraw("5", carol, { from: david });
       });
 
       it("Claim rewards when lottery unrealized", async () => {
@@ -1845,6 +1792,7 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
 
         await expectRevert(
           lottery.recoverWrongTokens(mockCake.address, parseEther("1"), { from: alice }),
+          
           "Cannot be BUSD token"
         );
       });
@@ -1915,89 +1863,3 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
     });
 });
 });
-
-/*
-  
-    it("test tickets", async () => {
-      let tickets = await lottery._winners(0)
-      console.log(tickets[0].toString());
-      console.log(tickets[1].toString());
-      console.log(tickets[2].toString());
-      console.log(tickets[3].toString());
-      console.log(tickets[4].toString());
-      console.log("--------------------------------------------------------------------------------------------------");
-      let ticket2 = await lottery._winners(1)
-      console.log(ticket2[0].toString());
-      console.log(ticket2[1].toString());
-      console.log(ticket2[2].toString());
-      console.log(ticket2[3].toString());
-      console.log(tickets[4].toString());
-      console.log("--------------------------------------------------------------------------------------------------");
-      let ticket3 = await lottery._winners(2)
-      console.log(ticket3[0].toString());
-      console.log(ticket3[1].toString());
-      console.log(ticket3[2].toString());
-      console.log(ticket3[3].toString());
-      console.log(tickets[4].toString());
-
-      let rand = await lottery.getRamd("3");
-      console.log(rand[0].toString());
-      console.log(rand[1].toString());
-      console.log(rand[2].toString());
-      console.log("--------------------------------------------------------------------------------------------------");
-
-      let arr = await lottery.shuffle("1", rand[0].toString())
-      // console.log(arr.length);
-      for (var i = 0; i < arr.length; i++) {
-        console.log(arr[i].toString());
-      }
-      console.log("--------------------------------------------------------------------------------------------------");
-      arr2 = await lottery.shuffle("1", rand[1].toString())
-      for (var j = 0; j < arr2.length; j++) {
-        console.log(arr2[j].toString());
-      }
-    });
-  it("test tickets", async () => {      
-    let tickets = await lottery._winners(0)
-    console.log(tickets[0].toString());
-    console.log(tickets[1].toString());
-    console.log(tickets[2].toString());
-    console.log(tickets[3].toString());
-    console.log(tickets[4].toString());
-    console.log("--------------------------------------------------------------------------------------------------");
-    let ticket2 = await lottery._winners(1)
-    console.log(ticket2[0].toString());
-    console.log(ticket2[1].toString());
-    console.log(ticket2[2].toString());
-    console.log(ticket2[3].toString());
-    console.log(tickets[4].toString());
-    console.log("--------------------------------------------------------------------------------------------------");
-    let ticket3 = await lottery._winners(2)
-    console.log(ticket3[0].toString());
-    console.log(ticket3[1].toString());
-    console.log(ticket3[2].toString());
-    console.log(ticket3[3].toString());
-    console.log(tickets[4].toString());
-    
-    let sm = await lottery.tickIds("1")
-    for (var k = 0; k < sm.length; k++) {
-      console.log(sm[k].toString())
-    }
-    
-    let rand = await lottery.getRamd("3");
-    console.log(rand[0].toString());
-    console.log(rand[1].toString());
-    console.log(rand[2].toString());
-    console.log("--------------------------------------------------------------------------------------------------");
-    let arr = await lottery.shuffle("1", rand[0].toString())
-    // console.log(arr.length);
-    for (var i = 0; i < arr.length; i++) {
-      console.log(arr[i].toString());
-    }
-    console.log("--------------------------------------------------------------------------------------------------");
-    arr2 = await lottery.shuffle("1", rand[1].toString())
-    for (var j = 0; j < arr2.length; j++) {
-      console.log(arr2[j].toString());
-    }
-  });
-*/
